@@ -1,0 +1,9 @@
+Original Text,Predicted Target,Predicted Stance,Ground Truth Target,Ground Truth Stance,Raw Model Response,Target Match Pct,Stance Match Pct
+"It is not 'appropriate' to teach creationism as a means for upholding the bible. This pre-supposes that the bible should be upheld in a literal sense. Many Christians object to this. More importantly, governments should not be in the business of upholding the Bible.
+",Teaching creationism,AGAINST,creationism,AGAINST,,75,100
+"The point of the debate is to set up a straw man, that the world was created in six days, that anti-Christians can knock down. The Bible doesn't stand or fall on that statement. Creationism doesn't stand or fall on that statement. God did not create the world in six days, but he did never the less, create it.",Six-day creation,AGAINST,creationism,AGAINST,,95,100
+" Allowing creationism in schools would violate the separation of church and state A separation of Church and state necessitates that public schools not be a forum for upholding the validity or truth of certain faiths. This does not necessarily mean that Christian faith and ""creationism"" should not be taught as subjects of interest in public schools. 
+",Creationism in schools,AGAINST,creationism,AGAINST,,-6,-6
+" Evolution is a theory that is supported at the micro level.  The macro level of evolution has a long way to go to provide proof, but there is enough work going on in this subject that links can eventually be found.  Creationism is also a theory based on faith, yes there are some historical evidence of links to the stories within the Bible, but that only proves that the Bible has some historical value and does not prove the Creationism theory.",Evolution,NEUTRAL,creationism,AGAINST,,-6,-6
+"Preventing creationism to be taught is not violating freedom of religion. Evolutionism is not a religion, and therefore renders this argument void.
+",Teaching Creationism,AGAINST,creationism,AGAINST,,-6,100

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluate Stance Results</title>
+    <style>
+        /* Add styles similar to index.html or specific styles */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f7f9;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        #stopEvaluationBtn {
+             background-color: #e74c3c;
+        }
+        #stopEvaluationBtn:hover:not(:disabled) {
+             background-color: #c0392b;
+        }
+        #progress-log {
+             background-color: #f8f9fa; 
+             border: 1px solid #dee2e6; 
+             padding: 10px; 
+             border-radius: 4px; 
+             max-height: 400px; 
+             overflow-y: auto; 
+             white-space: pre-wrap; 
+             word-wrap: break-word;
+             font-size: 14px;
+        }
+        .loading {
+            text-align: center;
+            margin: 20px 0;
+            display: none;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #3498db;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+         #message-area {
+            margin-top: 15px; 
+            padding: 10px; 
+            border-radius: 4px; 
+            display: none;
+         }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Evaluate Analysis Results</h1>
+        <p>Evaluating file: <strong id="filename-display">{{ filename }}</strong></p>
+        <p>This process uses the Gemini LLM to compare the predicted target/stance against the ground truth target/stance for each row and assigns a percentage score (0-100) for the match.</p>
+        
+        <button id="startEvaluationBtn">Start Evaluation</button>
+        <button id="stopEvaluationBtn" style="display: none;">Stop Evaluation</button>
+        
+        <div id="message-area"></div>
+
+        <div class="loading" id="loading-indicator">
+             <div class="spinner"></div>
+             <p>Working...</p>
+        </div>
+
+        <!-- Progress Display Area -->
+        <div id="progress-area" style="margin-top: 20px; display: none;">
+            <h4>Live Progress:</h4>
+            <pre id="progress-log"></pre>
+            <p id="progress-summary"></p>
+        </div>
+    </div>
+
+    <script>
+        const filename = "{{ filename }}"; // Get filename from Flask
+        const startBtn = document.getElementById('startEvaluationBtn');
+        const stopBtn = document.getElementById('stopEvaluationBtn');
+        const progressArea = document.getElementById('progress-area');
+        const progressLog = document.getElementById('progress-log');
+        const progressSummary = document.getElementById('progress-summary');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const messageArea = document.getElementById('message-area');
+
+        let currentTaskID = null;
+        let eventSource = null;
+
+        document.getElementById('filename-display').textContent = filename;
+
+        startBtn.addEventListener('click', startEvaluation);
+        stopBtn.addEventListener('click', stopCurrentEvaluation);
+
+        function startEvaluation() {
+            // Disable start, clear progress, show stop (placeholder logic)
+            startBtn.disabled = true;
+            stopBtn.style.display = 'inline-block';
+            stopBtn.disabled = false;
+            progressArea.style.display = 'none';
+            progressLog.textContent = '';
+            progressSummary.textContent = '';
+            messageArea.style.display = 'none';
+            loadingIndicator.style.display = 'block';
+
+            fetch('/start_evaluation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ filename: filename }),
+            })
+            .then(response => {
+                loadingIndicator.style.display = 'none';
+                 if (!response.ok) {
+                     return response.json().then(data => {
+                         throw new Error(data.error || response.statusText || `Server error: ${response.status}`);
+                     }).catch(() => {
+                          throw new Error(`Server error: ${response.status}`);
+                     });
+                 } 
+                 return response.json();
+            })
+            .then(data => {
+                if (data.task_id) {
+                    currentTaskID = data.task_id;
+                    showMessage('Evaluation started in background. See progress below.', 'info');
+                    progressArea.style.display = 'block';
+                    progressSummary.textContent = 'Connecting to progress stream...';
+                    startEventSource(currentTaskID);
+                } else {
+                     throw new Error(data.error || "Failed to start evaluation task.");
+                }
+            })
+            .catch(error => {
+                 loadingIndicator.style.display = 'none';
+                 showMessage(`Error starting evaluation: ${error.message}`, 'error');
+                 resetButtons();
+            });
+        }
+
+        function startEventSource(taskID) {
+            // Logic similar to index.html to connect to /stream_progress/<task_id>
+            if (eventSource) eventSource.close();
+
+            eventSource = new EventSource(`/stream_progress/${taskID}`);
+            progressLog.textContent = 'Waiting for progress...';
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    updateProgressDisplay(data); // Needs custom logic for evaluation progress
+                } catch (e) {
+                    console.error("Failed to parse SSE message:", event.data, e);
+                    progressLog.textContent += `\n[Error parsing message: ${event.data}]`;
+                }
+            };
+
+            eventSource.onerror = function(error) {
+                 console.error("EventSource failed:", error);
+                 showMessage('Connection to progress stream lost or failed.', 'error');
+                 progressSummary.textContent = 'Stream connection error.';
+                 eventSource.close();
+                 resetButtons();
+            };
+            
+            eventSource.addEventListener('close', function(event) {
+                 console.log("SSE stream closed by server.", event.data);
+                 eventSource.close();
+                 resetButtons();
+                 if (!progressSummary.textContent.includes("completed") && !progressSummary.textContent.includes("stopped") && !progressSummary.textContent.includes("Error")) {
+                      progressSummary.textContent += " (Stream Closed)";
+                 }
+            });
+            
+             eventSource.addEventListener('error', function(event) {
+                  if (eventSource.readyState == EventSource.CLOSED) {
+                        showMessage('Connection to progress stream closed unexpectedly.', 'error');
+                        resetButtons();
+                  }
+             });
+        }
+
+        function updateProgressDisplay(data) {
+            // Custom logic to display evaluation progress
+             if (data.type === 'start') {
+                 progressSummary.textContent = `Started evaluating ${data.total_rows} rows...`;
+             } else if (data.type === 'progress') {
+                 progressSummary.textContent = `Evaluating row ${data.row} of ${data.total}.`;
+                 progressLog.textContent += `\nRow ${data.row}: Pred T: '${data.pred_t}', GT T: '${data.gt_t}' | Pred S: '${data.pred_s}', GT S: '${data.gt_s}'`;
+                 progressLog.scrollTop = progressLog.scrollHeight;
+             } else if (data.type === 'result') {
+                 progressLog.textContent += ` -> Target Match: ${data.target_match}%, Stance Match: ${data.stance_match}%`;
+                 progressLog.scrollTop = progressLog.scrollHeight;
+             } else if (data.type === 'status') {
+                 progressSummary.textContent = data.message;
+                 progressLog.textContent += `\n[Status: ${data.message}]`;
+                 progressLog.scrollTop = progressLog.scrollHeight;
+             } else if (data.type === 'saved') {
+                  progressSummary.textContent += ` Evaluation results saved to ${data.filename}.`;
+                  progressLog.textContent += `\n[Saved: ${data.filename}]`;
+                  progressLog.scrollTop = progressLog.scrollHeight;
+             } else if (data.type === 'error') {
+                 progressSummary.textContent = `Error: ${data.message}`;
+                 progressLog.textContent += `\n[ERROR: ${data.message}]`;
+                 progressLog.scrollTop = progressLog.scrollHeight;
+                 showMessage(`Processing Error: ${data.message}`, 'error'); 
+                 resetButtons();
+             }
+        }
+
+        function stopCurrentEvaluation() {
+            // Logic similar to index.html to call /stop_analysis/<task_id>
+            if (!currentTaskID) return;
+
+            showMessage("Sending stop signal...", 'info');
+            stopBtn.disabled = true;
+
+             fetch(`/stop_analysis/${currentTaskID}`, { method: 'POST' })
+                 .then(response => response.json())
+                 .then(data => {
+                     if (data.error) {
+                         showMessage(`Failed to send stop signal: ${data.error}`, 'error');
+                         stopBtn.disabled = false; 
+                     } else {
+                         showMessage(data.message || 'Stop signal sent. Waiting for process to halt.', 'info');
+                     }
+                 })
+                 .catch(error => {
+                     showMessage(`Error sending stop signal: ${error.message}`, 'error');
+                     stopBtn.disabled = false; 
+                 });
+        }
+        
+        function resetButtons() {
+            startBtn.disabled = false;
+            stopBtn.style.display = 'none';
+            stopBtn.disabled = false; 
+            currentTaskID = null;
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+        }
+
+        function showMessage(message, type) {
+             messageArea.textContent = message;
+             messageArea.style.backgroundColor = type === 'error' ? '#f8d7da' : (type === 'info' ? '#cfe2ff' : '#d4edda');
+             messageArea.style.color = type === 'error' ? '#721c24' : (type === 'info' ? '#055160' : '#155724');
+             messageArea.style.border = `1px solid ${type === 'error' ? '#f5c6cb' : (type === 'info' ? '#b6d4fe' : '#c3e6cb')}`;
+             messageArea.style.display = 'block';
+        }
+
+    </script>
+</body>
+</html> 

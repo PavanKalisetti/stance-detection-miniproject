@@ -13,6 +13,9 @@ import uuid
 import time
 import google.api_core.exceptions # Import exception for retries
 
+# Import evaluation functions
+from evaluate import evaluate_results_background
+
 # Load environment variables
 load_dotenv()
 
@@ -23,6 +26,7 @@ genai.configure(api_key=api_key)
 app = Flask(__name__)
 
 RESULTS_DIR = "analysis_results"
+EVALUATION_DIR = "evaluation_outputs"
 
 # Dictionary to keep track of active analysis tasks
 # Structure: { task_id: { 'thread': threading.Thread, 'stop_event': threading.Event, 'queue': queue.Queue, 'status': str, 'results_df': pd.DataFrame, 'filename': str } }
@@ -31,6 +35,8 @@ active_tasks = {}
 # Ensure results directory exists
 if not os.path.exists(RESULTS_DIR):
     os.makedirs(RESULTS_DIR)
+if not os.path.exists(EVALUATION_DIR):
+     os.makedirs(EVALUATION_DIR)
 
 def load_csv_data(file_path):
     try:
@@ -159,7 +165,7 @@ def analyze_stance(input_text):
         # Catch any other exceptions during processing
         return {"target": "ERROR", "stance": f"Processing error: {str(e)}"}
 
-def process_csv_background(task_id, file_stream_data, filename, text_column, gt_target_column, gt_stance_column):
+def process_csv_background(task_id, file_stream_data, filename, text_column, gt_target_column, gt_stance_column, start_row):
     """Background task to process the CSV and send progress."""
     task = active_tasks.get(task_id)
     if not task:
@@ -183,11 +189,18 @@ def process_csv_background(task_id, file_stream_data, filename, text_column, gt_
         if text_column not in df.columns:
             raise ValueError(f"Text column '{text_column}' not found in CSV")
             
+        # Adjust start_row for 0-based indexing
+        start_index = start_row - 1 
+
         request_count = 0 # Counter for API requests
         pause_interval = 15 # Pause after every N requests
         pause_duration = 60 # Pause duration in seconds (1 minute)
 
         for index, row in df.iterrows():
+            # Skip rows before the starting index
+            if index < start_index:
+                continue
+
             if stop_event.is_set():
                 task['status'] = 'stopped'
                 q.put(json.dumps({"type": "status", "message": f"Processing stopped by user at row {index + 1}."}))
@@ -286,53 +299,6 @@ def process_csv_background(task_id, file_stream_data, filename, text_column, gt_
         # Clean up task entry after a delay? Or maybe leave it for inspection?
         # For now, leave it.
         print(f"Background task {task_id} finished with status: {task['status']}")
-
-@app.route('/analyze_csv', methods=['POST'])
-def analyze_csv():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file provided"}), 400
-
-    file = request.files['file']
-    text_column = request.form.get('text_column')
-    gt_target_column = request.form.get('gt_target_column') or "GT Target" # Use default if empty
-    gt_stance_column = request.form.get('gt_stance_column') or "GT Stance" # Use default if empty
-
-    if file.filename == '':
-        return jsonify({"error": "No file selected"}), 400
-    if not file.filename.endswith('.csv'):
-        return jsonify({"error": "File must be a CSV"}), 400
-    if not text_column:
-         return jsonify({"error": "Text column name must be provided"}), 400
-
-    try:
-        # Read file into memory to pass to thread
-        file_stream_data = file.read()
-        # Reset stream pointer if needed elsewhere, though we pass bytes here
-        # file.stream.seek(0) 
-    except Exception as e:
-         return jsonify({"error": f"Error reading uploaded file: {str(e)}"}), 500
-
-    task_id = str(uuid.uuid4())
-    task_queue = queue.Queue()
-    stop_event = threading.Event()
-
-    thread = threading.Thread(
-        target=process_csv_background, 
-        args=(task_id, file_stream_data, file.filename, text_column, gt_target_column, gt_stance_column)
-    )
-
-    active_tasks[task_id] = {
-        'thread': thread,
-        'stop_event': stop_event,
-        'queue': task_queue,
-        'status': 'starting',
-        'filename': file.filename,
-        'results_df': None # Will be populated later
-    }
-
-    thread.start()
-
-    return jsonify({"message": "Analysis started", "task_id": task_id})
 
 @app.route('/stream_progress/<task_id>')
 def stream_progress(task_id):
@@ -437,6 +403,164 @@ def delete_result(filename):
         return jsonify({"message": f"File '{safe_filename}' deleted successfully."})
     except Exception as e:
         return jsonify({"error": f"Could not delete file: {str(e)}"}), 500
+
+# --- Evaluation Results Management Endpoints --- #
+
+@app.route('/list_evaluations', methods=['GET'])
+def list_evaluations():
+    """Lists evaluation result CSV files."""
+    try:
+        files = [f for f in os.listdir(EVALUATION_DIR) if f.endswith('.csv')]
+        files.sort(reverse=True) # Show newest first
+        return jsonify({"results": files})
+    except Exception as e:
+        return jsonify({"error": f"Could not list evaluation results: {str(e)}"}), 500
+
+@app.route('/view_evaluation/<filename>', methods=['GET'])
+def view_evaluation(filename):
+    """Reads and returns the content of an evaluation result CSV."""
+    safe_filename = secure_filename(filename)
+    file_path = os.path.join(EVALUATION_DIR, safe_filename)
+    
+    if not os.path.exists(file_path):
+        return jsonify({"error": "Evaluation file not found"}), 404
+        
+    try:
+        df = pd.read_csv(file_path)
+        json_string = df.to_json(orient='records', date_format='iso')
+        results_data = json.loads(json_string)
+        return jsonify({"data": results_data})
+    except Exception as e:
+        return jsonify({"error": f"Could not read or process evaluation file: {str(e)}"}), 500
+
+@app.route('/delete_evaluation/<filename>', methods=['DELETE'])
+def delete_evaluation(filename):
+    """Deletes an evaluation result CSV file."""
+    safe_filename = secure_filename(filename)
+    file_path = os.path.join(EVALUATION_DIR, safe_filename)
+    
+    if not os.path.exists(file_path):
+        return jsonify({"error": "Evaluation file not found"}), 404
+        
+    try:
+        os.remove(file_path)
+        return jsonify({"message": f"Evaluation file '{safe_filename}' deleted successfully."})
+    except Exception as e:
+        return jsonify({"error": f"Could not delete evaluation file: {str(e)}"}), 500
+
+# --- Evaluation Helper --- #
+# --- Definition Moved to evaluate.py --- #
+
+# --- Background Evaluation Worker --- #
+# --- Definition Moved to evaluate.py --- # 
+
+# --- Add back the Analysis Endpoint --- #
+@app.route('/analyze_csv', methods=['POST'])
+def analyze_csv():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files['file']
+    text_column = request.form.get('text_column')
+    gt_target_column = request.form.get('gt_target_column') or "GT Target" 
+    gt_stance_column = request.form.get('gt_stance_column') or "GT Stance" 
+    start_row = int(request.form.get('start_row', 1)) 
+
+    if file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+    if not file.filename.endswith('.csv'):
+        return jsonify({"error": "File must be a CSV"}), 400
+    if not text_column:
+         return jsonify({"error": "Text column name must be provided"}), 400
+    if start_row < 1:
+        return jsonify({"error": "Start row must be 1 or greater"}), 400
+
+    try:
+        file_stream_data = file.read()
+    except Exception as e:
+         return jsonify({"error": f"Error reading uploaded file: {str(e)}"}), 500
+
+    task_id = str(uuid.uuid4())
+    task_queue = queue.Queue()
+    stop_event = threading.Event()
+
+    thread = threading.Thread(
+        target=process_csv_background, 
+        args=(task_id, file_stream_data, file.filename, text_column, gt_target_column, gt_stance_column, start_row)
+    )
+
+    active_tasks[task_id] = {
+        'type': 'analysis',
+        'thread': thread,
+        'stop_event': stop_event,
+        'queue': task_queue,
+        'status': 'starting',
+        'filename': file.filename,
+        'results_df': None 
+    }
+
+    thread.start()
+    return jsonify({"message": "Analysis started", "task_id": task_id})
+# --- End Analysis Endpoint --- #
+
+# --- Evaluation Endpoints --- #
+
+@app.route('/evaluate/<filename>')
+def evaluate_page(filename):
+    safe_filename = secure_filename(filename)
+    # Basic check if file likely exists before rendering
+    file_path = os.path.join(RESULTS_DIR, safe_filename)
+    if not os.path.exists(file_path):
+         # Render an error message or redirect
+         # For simplicity, return an error string and status code
+         return f"Error: Analysis results file not found: {safe_filename}", 404
+    # If file exists, render the evaluation page template
+    return render_template('evaluate.html', filename=safe_filename)
+
+@app.route('/start_evaluation', methods=['POST'])
+def start_evaluation():
+    data = request.json
+    filename = data.get('filename')
+    
+    if not filename:
+        return jsonify({"error": "Filename not provided"}), 400
+        
+    safe_filename = secure_filename(filename)
+    analysis_file_path = os.path.join(RESULTS_DIR, safe_filename)
+    
+    if not os.path.exists(analysis_file_path):
+        return jsonify({"error": f"Analysis results file not found: {safe_filename}"}), 404
+
+    task_id = str(uuid.uuid4())
+    task_queue = queue.Queue()
+    stop_event = threading.Event()
+
+    thread = threading.Thread(
+        target=evaluate_results_background, # Call the imported function
+        args=(
+            task_id, 
+            safe_filename,
+            RESULTS_DIR,       # Pass results dir path
+            EVALUATION_DIR,    # Pass evaluation dir path
+            task_queue,        # Pass the queue
+            stop_event,        # Pass the stop event
+            app.logger         # Pass the logger instance
+            )
+    )
+
+    active_tasks[task_id] = {
+        'type': 'evaluation', # Mark type
+        'thread': thread,
+        'stop_event': stop_event,
+        'queue': task_queue,
+        'status': 'starting',
+        'filename': safe_filename, 
+        'results_df': None 
+    }
+
+    thread.start()
+    # Return the task_id so the frontend can connect to the stream
+    return jsonify({"message": "Evaluation started", "task_id": task_id})
 
 if __name__ == '__main__':
     app.run(debug=True) 

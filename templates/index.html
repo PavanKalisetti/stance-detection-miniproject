@@ -234,6 +234,19 @@
             font-size: 12px;
             padding: 2px 5px;
         }
+        /* Style evaluation percentages */
+        #eval-table td.pct-cell {
+            text-align: center;
+        }
+        #eval-table td.pct-cell.low {
+             background-color: #f8d7da;
+        }
+        #eval-table td.pct-cell.medium {
+             background-color: #fff3cd;
+        }
+        #eval-table td.pct-cell.high {
+             background-color: #d4edda;
+        }
     </style>
 </head>
 <body>
@@ -242,7 +255,8 @@
     <div class="tabs">
         <div class="tab active" data-tab="manual">Manual Input</div>
         <div class="tab" data-tab="csv">Analyze Entire CSV & Download Results</div>
-        <div class="tab" data-tab="past-results">Past Results</div>
+        <div class="tab" data-tab="past-results">Past Analysis</div>
+        <div class="tab" data-tab="past-evaluations">Past Evaluations</div>
     </div>
     
     <div id="manual-tab" class="tab-content active">
@@ -284,15 +298,15 @@
 
             <div style="margin-bottom: 15px;">
                 <label for="columnName">Column with text to analyze:</label>
-                <input type="text" id="columnName" value="tweet" required style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="text" id="columnName" value="text" required style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             </div>
             <div style="margin-bottom: 15px;">
                 <label for="gtTargetColumn">Column with Ground Truth Target (optional):</label>
-                <input type="text" id="gtTargetColumn" value="GT Target" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="text" id="gtTargetColumn" value="target" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             </div>
             <div style="margin-bottom: 15px;">
                 <label for="gtStanceColumn">Column with Ground Truth Stance (optional):</label>
-                <input type="text" id="gtStanceColumn" value="GT Stance" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                <input type="text" id="gtStanceColumn" value="stance" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             </div>
             <div style="margin-bottom: 15px;">
                 <label for="startRow">Start processing from row number:</label>
@@ -335,6 +349,24 @@
                 <p>Loading...</p>
             </div>
              <div id="past-results-message" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Past Evaluations Tab -->
+    <div id="past-evaluations-tab" class="tab-content">
+        <div class="container">
+            <h3>Past Evaluation Results</h3>
+             <p>These files contain the original analysis data plus columns for Target/Stance Match Percentage based on LLM evaluation.</p>
+            <ul id="past-evaluations-list"></ul>
+            <div id="eval-view-container" style="margin-top: 20px;">
+                 <h4 id="eval-view-filename" style="display: none;">Viewing: </h4>
+                 <div id="eval-table-container"></div>
+            </div>
+             <div class="loading" id="past-evaluations-loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading...</p>
+            </div>
+             <div id="past-evaluations-message" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
         </div>
     </div>
 
@@ -683,9 +715,21 @@
                                 deleteButton.textContent = 'Delete';
                                 deleteButton.className = 'delete-btn';
                                 deleteButton.onclick = () => deleteResult(filename);
-                                
+
+                                const evaluateButton = document.createElement('a'); // Use anchor tag for new tab
+                                evaluateButton.textContent = 'Evaluate';
+                                evaluateButton.href = `/evaluate/${filename}`; // Link to evaluation page
+                                evaluateButton.target = '_blank'; // Open in new tab
+                                evaluateButton.className = 'button'; // Style like a button
+                                evaluateButton.style.marginLeft = '5px';
+                                evaluateButton.style.padding = '5px 10px';
+                                evaluateButton.style.fontSize = '14px';
+                                evaluateButton.style.textDecoration = 'none';
+                                evaluateButton.style.backgroundColor = '#2ecc71'; // Green color
+
                                 actionsDiv.appendChild(viewButton);
                                 actionsDiv.appendChild(deleteButton);
+                                actionsDiv.appendChild(evaluateButton); // Add evaluate button
                                 li.appendChild(nameSpan);
                                 li.appendChild(actionsDiv);
                                 pastResultsList.appendChild(li);
@@ -822,6 +866,194 @@
                  pastResultsMessage.style.color = type === 'error' ? '#721c24' : (type === 'success' ? '#155724' : '#383d41');
                  pastResultsMessage.style.border = `1px solid ${type === 'error' ? '#f5c6cb' : (type === 'success' ? '#c3e6cb' : '#d6d8db')}`;
                  pastResultsMessage.style.display = 'block';
+            }
+
+            // --- Past Evaluations Tab Functionality --- 
+            const pastEvaluationsTab = document.querySelector('.tab[data-tab="past-evaluations"]');
+            const pastEvaluationsList = document.getElementById('past-evaluations-list');
+            const evalViewContainer = document.getElementById('eval-view-container');
+            const evalViewFilename = document.getElementById('eval-view-filename');
+            const evalTableContainer = document.getElementById('eval-table-container');
+            const pastEvaluationsLoading = document.getElementById('past-evaluations-loading');
+            const pastEvaluationsMessage = document.getElementById('past-evaluations-message');
+            let currentlyViewingEvaluation = null; // Track which evaluation file is being viewed
+
+            pastEvaluationsTab.addEventListener('click', loadPastEvaluations);
+
+            function loadPastEvaluations() {
+                pastEvaluationsLoading.style.display = 'block';
+                pastEvaluationsMessage.style.display = 'none';
+                evalViewContainer.style.display = 'none'; 
+                evalTableContainer.innerHTML = ''; 
+                currentlyViewingEvaluation = null;
+
+                fetch('/list_evaluations') // Use new endpoint
+                    .then(response => response.json())
+                    .then(data => {
+                        pastEvaluationsLoading.style.display = 'none';
+                        pastEvaluationsList.innerHTML = ''; 
+                        if (data.error) {
+                            showPastEvaluationsMessage(`Error loading evaluations: ${data.error}`, 'error');
+                        } else if (data.results && data.results.length > 0) {
+                            data.results.forEach(filename => {
+                                const li = document.createElement('li');
+                                const nameSpan = document.createElement('span');
+                                nameSpan.textContent = filename;
+                                const actionsDiv = document.createElement('div');
+                                actionsDiv.className = 'result-actions';
+                                
+                                const viewButton = document.createElement('button');
+                                viewButton.textContent = 'View';
+                                viewButton.onclick = () => viewEvaluation(filename); // Use new view function
+                                
+                                const deleteButton = document.createElement('button');
+                                deleteButton.textContent = 'Delete';
+                                deleteButton.className = 'delete-btn';
+                                deleteButton.onclick = () => deleteEvaluation(filename); // Use new delete function
+                                
+                                // No evaluate button needed here
+                                actionsDiv.appendChild(viewButton);
+                                actionsDiv.appendChild(deleteButton);
+                                li.appendChild(nameSpan);
+                                li.appendChild(actionsDiv);
+                                pastEvaluationsList.appendChild(li);
+                            });
+                        } else {
+                             pastEvaluationsList.innerHTML = '<li>No past evaluations found.</li>';
+                        }
+                    })
+                    .catch(error => {
+                        pastEvaluationsLoading.style.display = 'none';
+                        showPastEvaluationsMessage(`Network Error: ${error.message}`, 'error');
+                    });
+            }
+
+            function viewEvaluation(filename) {
+                pastEvaluationsLoading.style.display = 'block';
+                pastEvaluationsMessage.style.display = 'none';
+                evalTableContainer.innerHTML = '';
+
+                fetch(`/view_evaluation/${filename}`) // Use new endpoint
+                    .then(response => {
+                         if (!response.ok) {
+                             throw new Error(`HTTP error! status: ${response.status}`);
+                         }
+                         return response.json();
+                    })
+                    .then(data => {
+                        pastEvaluationsLoading.style.display = 'none';
+                        if (data.error) {
+                            showPastEvaluationsMessage(`Error viewing file: ${data.error}`, 'error');
+                            evalViewContainer.style.display = 'none';
+                        } else if (data.data) {
+                            currentlyViewingEvaluation = filename;
+                            displayEvaluationInTable(data.data, filename);
+                        } else {
+                            showPastEvaluationsMessage('No data found in file.', 'info');
+                            evalViewContainer.style.display = 'none';
+                        }
+                    })
+                    .catch(error => {
+                        pastEvaluationsLoading.style.display = 'none';
+                        showPastEvaluationsMessage(`Error fetching evaluation: ${error.message}`, 'error');
+                        evalViewContainer.style.display = 'none';
+                    });
+            }
+
+            function displayEvaluationInTable(resultsData, filename) {
+                evalViewFilename.textContent = `Viewing: ${filename}`;
+                evalViewFilename.style.display = 'block';
+                evalViewContainer.style.display = 'block';
+                evalTableContainer.innerHTML = '';
+
+                if (!resultsData || resultsData.length === 0) {
+                    evalTableContainer.innerHTML = '<p>No data to display.</p>';
+                    return;
+                }
+
+                const table = document.createElement('table');
+                table.id = 'eval-table'; // Different ID for potentially different styling
+                const thead = table.createTHead();
+                const tbody = table.createTBody();
+                const headers = Object.keys(resultsData[0]);
+
+                const headerRow = thead.insertRow();
+                headers.forEach(headerText => {
+                    const th = document.createElement('th');
+                    th.textContent = headerText;
+                    headerRow.appendChild(th);
+                });
+
+                resultsData.forEach(rowData => {
+                    const row = tbody.insertRow();
+                    headers.forEach(header => {
+                        const cell = row.insertCell();
+                        let cellContent = rowData[header] !== null ? String(rowData[header]) : ''; // Ensure string conversion
+                        
+                        if (header === 'Predicted Stance' || header === 'Ground Truth Stance') {
+                             if (cellContent && ['FAVOR', 'AGAINST', 'NEUTRAL'].includes(cellContent.toUpperCase())) {
+                                const stanceSpan = document.createElement('span');
+                                stanceSpan.className = `stance ${cellContent.toLowerCase()}`;
+                                stanceSpan.textContent = cellContent;
+                                cell.appendChild(stanceSpan);
+                             } else {
+                                cell.textContent = cellContent; 
+                             }
+                        } else if (header === 'Target Match Pct' || header === 'Stance Match Pct') {
+                             cell.textContent = cellContent;
+                             cell.classList.add('pct-cell');
+                             // Add conditional background based on percentage
+                             const pct = parseInt(cellContent, 10);
+                             if (!isNaN(pct)) {
+                                if (pct < 50) cell.classList.add('low');
+                                else if (pct < 80) cell.classList.add('medium');
+                                else cell.classList.add('high');
+                             }
+                        } else {
+                             cell.textContent = cellContent;
+                        }
+                    });
+                });
+
+                evalTableContainer.appendChild(table);
+            }
+
+            function deleteEvaluation(filename) {
+                if (!confirm(`Are you sure you want to delete the evaluation file: ${filename}?`)) {
+                    return;
+                }
+
+                pastEvaluationsLoading.style.display = 'block';
+                pastEvaluationsMessage.style.display = 'none';
+
+                fetch(`/delete_evaluation/${filename}`, { method: 'DELETE' }) // Use new endpoint
+                .then(response => response.json())
+                .then(data => {
+                    pastEvaluationsLoading.style.display = 'none';
+                    if (data.error) {
+                        showPastEvaluationsMessage(`Error deleting file: ${data.error}`, 'error');
+                    } else {
+                        showPastEvaluationsMessage(data.message || 'File deleted.', 'success');
+                        if (currentlyViewingEvaluation === filename) {
+                             evalViewContainer.style.display = 'none';
+                             evalTableContainer.innerHTML = ''; 
+                             currentlyViewingEvaluation = null;
+                        }
+                        loadPastEvaluations(); // Refresh the list
+                    }
+                })
+                .catch(error => {
+                    pastEvaluationsLoading.style.display = 'none';
+                    showPastEvaluationsMessage(`Network error: ${error.message}`, 'error');
+                });
+            }
+            
+             function showPastEvaluationsMessage(message, type) {
+                 pastEvaluationsMessage.textContent = message;
+                 pastEvaluationsMessage.style.backgroundColor = type === 'error' ? '#f8d7da' : (type === 'success' ? '#d4edda' : '#e2e3e5');
+                 pastEvaluationsMessage.style.color = type === 'error' ? '#721c24' : (type === 'success' ? '#155724' : '#383d41');
+                 pastEvaluationsMessage.style.border = `1px solid ${type === 'error' ? '#f5c6cb' : (type === 'success' ? '#c3e6cb' : '#d6d8db')}`;
+                 pastEvaluationsMessage.style.display = 'block';
             }
 
         });
