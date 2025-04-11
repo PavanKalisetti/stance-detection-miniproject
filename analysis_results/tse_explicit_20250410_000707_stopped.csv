@@ -1,0 +1,4 @@
+Original Text,Predicted Target,Predicted Stance,Ground Truth Target,Ground Truth Stance,Raw Model Response
+"It is not 'appropriate' to teach creationism as a means for upholding the bible. This pre-supposes that the bible should be upheld in a literal sense. Many Christians object to this. More importantly, governments should not be in the business of upholding the Bible.
+",Teaching creationism,AGAINST,creationism,AGAINST,
+"The point of the debate is to set up a straw man, that the world was created in six days, that anti-Christians can knock down. The Bible doesn't stand or fall on that statement. Creationism doesn't stand or fall on that statement. God did not create the world in six days, but he did never the less, create it.",creation in six days,AGAINST,creationism,AGAINST,

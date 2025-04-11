@@ -12,7 +12,7 @@
             padding: 20px;
             background-color: #f5f7f9;
         }
-        h1 {
+        h1, h2, h3 {
             color: #2c3e50;
             text-align: center;
             margin-bottom: 30px;
@@ -22,6 +22,7 @@
             border-radius: 8px;
             padding: 20px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
         }
         textarea {
             width: 100%;
@@ -123,42 +124,241 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f5f7f9;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: white;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .file-upload {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .file-upload input[type="file"] {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .file-upload button {
+            margin-left: 10px;
+        }
+        .rows-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 20px;
+            padding: 10px;
+        }
+        .row-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .row-item:hover {
+            background-color: #f1f8ff;
+        }
+        .row-item.selected {
+            background-color: #e3f2fd;
+        }
+        /* Styles for Past Results Tab */
+        #past-results-list {
+            list-style: none;
+            padding: 0;
+        }
+        #past-results-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        #past-results-list li:last-child {
+            border-bottom: none;
+        }
+        .result-actions button {
+            margin-left: 5px;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+        .delete-btn {
+            background-color: #e74c3c;
+        }
+        .delete-btn:hover {
+            background-color: #c0392b;
+        }
+        #result-table-container {
+            margin-top: 20px;
+            max-height: 500px;
+            overflow: auto;
+        }
+        #result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        #result-table th, #result-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            font-size: 14px;
+        }
+        #result-table th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+        }
+        #result-table td span.stance {
+            font-size: 12px;
+            padding: 2px 5px;
+        }
     </style>
 </head>
 <body>
     <h1>Stance Detection</h1>
-    <div class="container">
-        <textarea id="textInput" placeholder="Enter text to analyze stance..."></textarea>
-        <button id="analyzeBtn">Analyze Stance</button>
-        
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Analyzing...</p>
-        </div>
-        
-        <div id="result"></div>
+    
+    <div class="tabs">
+        <div class="tab active" data-tab="manual">Manual Input</div>
+        <div class="tab" data-tab="csv">Analyze Entire CSV & Download Results</div>
+        <div class="tab" data-tab="past-results">Past Results</div>
     </div>
     
-    <div class="example-container">
-        <h3>Examples:</h3>
-        <div class="examples">
-            <div class="example" data-text="I believe climate change is a serious threat that requires immediate action.">
-                Climate change is a serious threat
+    <div id="manual-tab" class="tab-content active">
+        <div class="container">
+            <textarea id="textInput" placeholder="Enter text to analyze stance..."></textarea>
+            <button id="analyzeBtn">Analyze Stance</button>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Analyzing...</p>
             </div>
-            <div class="example" data-text="The new tax policy won't help the economy at all and will only benefit the wealthy.">
-                New tax policy criticism
+            
+            <div id="result"></div>
+        </div>
+        
+        <div class="example-container">
+            <h3>Examples:</h3>
+            <div class="examples">
+                <div class="example" data-text="I believe climate change is a serious threat that requires immediate action.">
+                    Climate change is a serious threat
+                </div>
+                <div class="example" data-text="The new tax policy won't help the economy at all and will only benefit the wealthy.">
+                    New tax policy criticism
+                </div>
+                <div class="example" data-text="While artificial intelligence has potential benefits, it also poses significant risks that need to be addressed.">
+                    Balanced view on AI
+                </div>
+                <div class="example" data-text="The latest smartphone release has some interesting features, but I'm not sure if it's worth upgrading.">
+                    Opinion on new smartphone
+                </div>
             </div>
-            <div class="example" data-text="While artificial intelligence has potential benefits, it also poses significant risks that need to be addressed.">
-                Balanced view on AI
+        </div>
+    </div>
+    
+    <div id="csv-tab" class="tab-content">
+        <div class="container">
+            <h3>Analyze Entire CSV & Download Results</h3>
+            <p>Upload a CSV file. Specify the column containing the text, and optionally, columns containing ground truth target and stance. The results (original text, predicted target/stance, ground truth) will be compiled into an Excel file.</p>
+
+            <div style="margin-bottom: 15px;">
+                <label for="columnName">Column with text to analyze:</label>
+                <input type="text" id="columnName" value="tweet" required style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             </div>
-            <div class="example" data-text="The latest smartphone release has some interesting features, but I'm not sure if it's worth upgrading.">
-                Opinion on new smartphone
+            <div style="margin-bottom: 15px;">
+                <label for="gtTargetColumn">Column with Ground Truth Target (optional):</label>
+                <input type="text" id="gtTargetColumn" value="GT Target" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             </div>
+            <div style="margin-bottom: 15px;">
+                <label for="gtStanceColumn">Column with Ground Truth Stance (optional):</label>
+                <input type="text" id="gtStanceColumn" value="GT Stance" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label for="startRow">Start processing from row number:</label>
+                <input type="number" id="startRow" value="1" min="1" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 80px;">
+            </div>
+            
+            <div class="file-upload">
+                <input type="file" id="csvFile" accept=".csv" required>
+                <button id="analyzeAllBtn">Start Analysis</button>
+                <button id="stopAnalysisBtn" style="display: none; background-color: #e74c3c; margin-left: 10px;">Stop Analysis</button>
+            </div>
+            
+            <div class="loading" id="csv-loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Processing CSV... This may take a while for large files.</p>
+            </div>
+
+            <div id="csv-message" style="margin-top: 20px; padding: 10px; border-radius: 4px; display: none;"></div>
+            
+            <!-- Progress Display Area -->
+            <div id="progress-area" style="margin-top: 20px; display: none;">
+                <h4>Live Progress:</h4>
+                <pre id="progress-log" style="background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; border-radius: 4px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;"></pre>
+                <p id="progress-summary"></p>
+            </div>
+        </div>
+            </div>
+            
+    <!-- Past Results Tab -->
+    <div id="past-results-tab" class="tab-content">
+        <div class="container">
+            <h3>Past Analysis Results</h3>
+            <ul id="past-results-list"></ul>
+            <div id="result-view-container" style="margin-top: 20px;">
+                 <h4 id="result-view-filename" style="display: none;">Viewing: </h4>
+                 <div id="result-table-container"></div>
+            </div>
+             <div class="loading" id="past-results-loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading...</p>
+            </div>
+             <div id="past-results-message" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
         </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Tab switching
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabId = tab.getAttribute('data-tab');
+                    
+                    // Remove active class from all tabs and contents
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(c => c.classList.remove('active'));
+                    
+                    // Add active class to clicked tab and corresponding content
+                    tab.classList.add('active');
+                    document.getElementById(`${tabId}-tab`).classList.add('active');
+                });
+            });
+            
+            // Manual input tab functionality
             const analyzeBtn = document.getElementById('analyzeBtn');
             const textInput = document.getElementById('textInput');
             const resultDiv = document.getElementById('result');
@@ -216,6 +416,414 @@
                     resultDiv.style.display = 'block';
                 });
             }
+            
+            // CSV tab functionality
+            const analyzeAllBtn = document.getElementById('analyzeAllBtn');
+            const csvFile = document.getElementById('csvFile');
+            const columnNameInput = document.getElementById('columnName');
+            const gtTargetColumnInput = document.getElementById('gtTargetColumn');
+            const gtStanceColumnInput = document.getElementById('gtStanceColumn');
+            const startRowInput = document.getElementById('startRow');
+            const csvLoading = document.getElementById('csv-loading');
+            const csvMessage = document.getElementById('csv-message');
+            const stopAnalysisBtn = document.getElementById('stopAnalysisBtn');
+            const progressArea = document.getElementById('progress-area');
+            const progressLog = document.getElementById('progress-log');
+            const progressSummary = document.getElementById('progress-summary');
+
+            let currentTaskID = null;
+            let eventSource = null;
+
+            analyzeAllBtn.addEventListener('click', analyzeFullCSV);
+            stopAnalysisBtn.addEventListener('click', stopCurrentAnalysis);
+            
+            function analyzeFullCSV() {
+                const file = csvFile.files[0];
+                const textColumn = columnNameInput.value.trim();
+                const gtTargetColumn = gtTargetColumnInput.value.trim();
+                const gtStanceColumn = gtStanceColumnInput.value.trim();
+                const startRow = parseInt(startRowInput.value, 10);
+
+                if (!file) {
+                    showMessage('Please select a CSV file', 'error');
+                    return;
+                }
+                if (!textColumn) {
+                    showMessage('Please enter the column name containing the text', 'error');
+                    return;
+                }
+                if (isNaN(startRow) || startRow < 1) {
+                    showMessage('Please enter a valid starting row number (1 or greater)', 'error');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('text_column', textColumn);
+                formData.append('gt_target_column', gtTargetColumn);
+                formData.append('gt_stance_column', gtStanceColumn);
+                formData.append('start_row', startRow);
+
+                // Show loading indicator while starting
+                // csvLoading.style.display = 'block'; 
+                progressArea.style.display = 'none'; // Hide old progress
+                progressLog.textContent = ''; // Clear log
+                progressSummary.textContent = '';
+                csvMessage.style.display = 'none';
+                analyzeAllBtn.disabled = true;
+                stopAnalysisBtn.style.display = 'none'; // Hide stop initially
+                stopAnalysisBtn.disabled = false; // Re-enable stop button
+
+                fetch('/analyze_csv', {
+                    method: 'POST',
+                    body: formData,
+                })
+                .then(response => {
+                    // csvLoading.style.display = 'none';
+                    if (!response.ok) {
+                         // Handle HTTP errors (e.g., 400, 500)
+                         return response.json().then(data => {
+                             throw new Error(data.error || response.statusText);
+                         }).catch(() => {
+                              throw new Error(`Server error: ${response.status}`);
+                         });
+                    } 
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.task_id) {
+                        currentTaskID = data.task_id;
+                        showMessage('Analysis started in background. See progress below.', 'info');
+                        progressArea.style.display = 'block';
+                        progressSummary.textContent = 'Connecting to progress stream...';
+                        analyzeAllBtn.style.display = 'none'; // Hide Start button
+                        stopAnalysisBtn.style.display = 'inline-block'; // Show Stop button
+                        startEventSource(currentTaskID);
+                    } else {
+                        throw new Error(data.error || "Failed to start analysis task.");
+                    }
+                })
+                .catch(error => {
+                    // csvLoading.style.display = 'none';
+                    showMessage(`Error starting analysis: ${error.message}`, 'error');
+                    analyzeAllBtn.disabled = false; // Re-enable button on error
+                });
+            }
+
+            function startEventSource(taskID) {
+                if (eventSource) {
+                    eventSource.close();
+                }
+                
+                eventSource = new EventSource(`/stream_progress/${taskID}`);
+                progressLog.textContent = 'Waiting for progress...'; // Initial message
+
+                eventSource.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        updateProgressDisplay(data);
+                    } catch (e) {
+                        console.error("Failed to parse SSE message data:", event.data, e);
+                        progressLog.textContent += `\n[Error parsing message: ${event.data}]`;
+                    }
+                };
+
+                eventSource.onerror = function(error) {
+                    console.error("EventSource failed:", error);
+                    showMessage('Connection to progress stream lost or failed.', 'error');
+                    progressSummary.textContent = 'Stream connection error.';
+                    eventSource.close();
+                    resetButtons();
+                };
+                
+                 // Add a specific listener for the close event sent from the backend
+                 eventSource.addEventListener('close', function(event) {
+                     console.log("SSE stream closed by server.", event.data);
+                     eventSource.close();
+                     resetButtons();
+                     // Final status is usually handled by the last message before close
+                     if (!progressSummary.textContent.includes("completed") && !progressSummary.textContent.includes("stopped") && !progressSummary.textContent.includes("Error")) {
+                         progressSummary.textContent += " (Stream Closed)";
+                     }
+                 });
+                 eventSource.addEventListener('error', function(event) {
+                      // This handles general SSE errors, different from eventSource.onerror
+                      console.warn("SSE stream reported an error event:", event);
+                      if (eventSource.readyState == EventSource.CLOSED) {
+                            showMessage('Connection to progress stream closed unexpectedly.', 'error');
+                            resetButtons();
+                      }
+                 });
+            }
+            
+            function updateProgressDisplay(data) {
+                 if (data.type === 'start') {
+                     progressSummary.textContent = `Started processing ${data.total_rows} rows...`;
+                 } else if (data.type === 'progress') {
+                     progressSummary.textContent = `Processing row ${data.row} of ${data.total}. Text: ${data.text}`;
+                     // Don't log every single progress update, maybe only results
+                 } else if (data.type === 'result') {
+                     progressLog.textContent += `\nRow ${data.row}: Target='${data.target}', Stance='${data.stance}'`;
+                     // Auto-scroll log
+                     progressLog.scrollTop = progressLog.scrollHeight;
+                 } else if (data.type === 'status') {
+                     progressSummary.textContent = data.message;
+                     progressLog.textContent += `\n[Status: ${data.message}]`;
+                     progressLog.scrollTop = progressLog.scrollHeight;
+                 } else if (data.type === 'saved') {
+                      progressSummary.textContent += ` Results saved to ${data.filename}.`;
+                      progressLog.textContent += `\n[Saved: ${data.filename}]`;
+                      progressLog.scrollTop = progressLog.scrollHeight;
+                      // Refresh past results list when done
+                      if (document.querySelector('.tab[data-tab="past-results"]').classList.contains('active')){
+                        loadPastResults();
+                      }
+                 } else if (data.type === 'error') {
+                     progressSummary.textContent = `Error: ${data.message}`;
+                     progressLog.textContent += `\n[ERROR: ${data.message}]`;
+                     progressLog.scrollTop = progressLog.scrollHeight;
+                     showMessage(`Processing Error: ${data.message}`, 'error'); // Show in main message area too
+                     // SSE stream should close automatically after backend sends __ERROR__
+                     resetButtons();
+                 }
+            }
+            
+            function stopCurrentAnalysis() {
+                 if (!currentTaskID) {
+                     showMessage("No analysis task is currently running.", 'info');
+                     return;
+                 }
+                 
+                 showMessage("Sending stop signal...", 'info');
+                 stopAnalysisBtn.disabled = true; // Disable stop button after clicking
+                 
+                 fetch(`/stop_analysis/${currentTaskID}`, { method: 'POST' })
+                     .then(response => response.json())
+                     .then(data => {
+                         if (data.error) {
+                             showMessage(`Failed to send stop signal: ${data.error}`, 'error');
+                             stopAnalysisBtn.disabled = false; // Re-enable if failed
+                         } else {
+                             showMessage(data.message || 'Stop signal sent. Waiting for process to halt.', 'info');
+                             // The SSE close event will handle final UI reset
+                         }
+                     })
+                     .catch(error => {
+                         showMessage(`Error sending stop signal: ${error.message}`, 'error');
+                         stopAnalysisBtn.disabled = false; // Re-enable on network error
+                     });
+            }
+
+            function resetButtons() {
+                analyzeAllBtn.style.display = 'inline-block';
+                analyzeAllBtn.disabled = false;
+                stopAnalysisBtn.style.display = 'none';
+                stopAnalysisBtn.disabled = false; // Ensure it's enabled for next run
+                currentTaskID = null;
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+            }
+
+            function showMessage(message, type) {
+                 csvMessage.textContent = message;
+                 csvMessage.style.backgroundColor = type === 'error' ? '#f8d7da' : '#d4edda';
+                 csvMessage.style.color = type === 'error' ? '#721c24' : '#155724';
+                 csvMessage.style.border = `1px solid ${type === 'error' ? '#f5c6cb' : '#c3e6cb'}`;
+                 csvMessage.style.display = 'block';
+            }
+
+            // --- Past Results Tab Functionality --- 
+            const pastResultsTab = document.querySelector('.tab[data-tab="past-results"]');
+            const pastResultsList = document.getElementById('past-results-list');
+            const resultViewContainer = document.getElementById('result-view-container');
+            const resultViewFilename = document.getElementById('result-view-filename');
+            const resultTableContainer = document.getElementById('result-table-container');
+            const pastResultsLoading = document.getElementById('past-results-loading');
+            const pastResultsMessage = document.getElementById('past-results-message');
+            let currentlyViewing = null; // Track which file is being viewed
+
+            pastResultsTab.addEventListener('click', loadPastResults);
+
+            // Load results when the page initially loads if the tab is active (might not be needed if default is manual)
+            // if (pastResultsTab.classList.contains('active')) {
+            //     loadPastResults();
+            // }
+
+            function loadPastResults() {
+                pastResultsLoading.style.display = 'block';
+                pastResultsMessage.style.display = 'none';
+                resultViewContainer.style.display = 'none'; // Hide table when refreshing list
+                resultTableContainer.innerHTML = ''; // Clear old table
+                currentlyViewing = null;
+
+                fetch('/list_results')
+                    .then(response => response.json())
+                    .then(data => {
+                        pastResultsLoading.style.display = 'none';
+                        pastResultsList.innerHTML = ''; // Clear previous list
+                        if (data.error) {
+                            showPastResultsMessage(`Error loading results: ${data.error}`, 'error');
+                        } else if (data.results && data.results.length > 0) {
+                            data.results.forEach(filename => {
+                                const li = document.createElement('li');
+                                
+                                const nameSpan = document.createElement('span');
+                                nameSpan.textContent = filename;
+                                
+                                const actionsDiv = document.createElement('div');
+                                actionsDiv.className = 'result-actions';
+                                
+                                const viewButton = document.createElement('button');
+                                viewButton.textContent = 'View';
+                                viewButton.onclick = () => viewResult(filename);
+                                
+                                const deleteButton = document.createElement('button');
+                                deleteButton.textContent = 'Delete';
+                                deleteButton.className = 'delete-btn';
+                                deleteButton.onclick = () => deleteResult(filename);
+                                
+                                actionsDiv.appendChild(viewButton);
+                                actionsDiv.appendChild(deleteButton);
+                                li.appendChild(nameSpan);
+                                li.appendChild(actionsDiv);
+                                pastResultsList.appendChild(li);
+                            });
+                        } else {
+                             pastResultsList.innerHTML = '<li>No past results found.</li>';
+                        }
+                    })
+                    .catch(error => {
+                        pastResultsLoading.style.display = 'none';
+                        showPastResultsMessage(`Network Error: ${error.message}`, 'error');
+                    });
+            }
+
+            function viewResult(filename) {
+                pastResultsLoading.style.display = 'block';
+                pastResultsMessage.style.display = 'none';
+                resultTableContainer.innerHTML = ''; // Clear previous table
+
+                fetch(`/view_result/${filename}`)
+                    .then(response => {
+                         if (!response.ok) {
+                             throw new Error(`HTTP error! status: ${response.status}`);
+                         }
+                         return response.json();
+                    })
+                    .then(data => {
+                        pastResultsLoading.style.display = 'none';
+                        if (data.error) {
+                            showPastResultsMessage(`Error viewing file: ${data.error}`, 'error');
+                            resultViewContainer.style.display = 'none';
+                        } else if (data.data) {
+                            currentlyViewing = filename;
+                            displayResultsInTable(data.data, filename);
+                        } else {
+                            showPastResultsMessage('No data found in file.', 'info');
+                            resultViewContainer.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                        pastResultsLoading.style.display = 'none';
+                        showPastResultsMessage(`Error fetching result: ${error.message}`, 'error');
+                        resultViewContainer.style.display = 'none';
+                    });
+            }
+
+            function displayResultsInTable(resultsData, filename) {
+                resultViewFilename.textContent = `Viewing: ${filename}`;
+                resultViewFilename.style.display = 'block';
+                resultViewContainer.style.display = 'block';
+                resultTableContainer.innerHTML = ''; // Clear previous table
+
+                if (!resultsData || resultsData.length === 0) {
+                    resultTableContainer.innerHTML = '<p>No data to display.</p>';
+                    return;
+                }
+
+                const table = document.createElement('table');
+                table.id = 'result-table';
+                const thead = table.createTHead();
+                const tbody = table.createTBody();
+                const headers = Object.keys(resultsData[0]);
+
+                // Create header row
+                const headerRow = thead.insertRow();
+                headers.forEach(headerText => {
+                    const th = document.createElement('th');
+                    th.textContent = headerText;
+                    headerRow.appendChild(th);
+                });
+
+                // Create data rows
+                resultsData.forEach(rowData => {
+                    const row = tbody.insertRow();
+                    headers.forEach(header => {
+                        const cell = row.insertCell();
+                        let cellContent = rowData[header] !== null ? rowData[header] : '';
+                        
+                        // Special formatting for stance
+                        if (header === 'Predicted Stance' || header === 'Ground Truth Stance') {
+                             if (cellContent && ['FAVOR', 'AGAINST', 'NEUTRAL'].includes(cellContent.toUpperCase())) {
+                                const stanceSpan = document.createElement('span');
+                                stanceSpan.className = `stance ${cellContent.toLowerCase()}`;
+                                stanceSpan.textContent = cellContent;
+                                cell.appendChild(stanceSpan);
+                             } else {
+                                cell.textContent = cellContent; 
+                             }
+                        } else {
+                             cell.textContent = cellContent;
+                        }
+                    });
+                });
+
+                resultTableContainer.appendChild(table);
+            }
+
+            function deleteResult(filename) {
+                if (!confirm(`Are you sure you want to delete the result file: ${filename}?`)) {
+                    return;
+                }
+
+                pastResultsLoading.style.display = 'block';
+                pastResultsMessage.style.display = 'none';
+
+                fetch(`/delete_result/${filename}`, {
+                    method: 'DELETE',
+                })
+                .then(response => response.json())
+                .then(data => {
+                    pastResultsLoading.style.display = 'none';
+                    if (data.error) {
+                        showPastResultsMessage(`Error deleting file: ${data.error}`, 'error');
+                    } else {
+                        showPastResultsMessage(data.message || 'File deleted.', 'success');
+                        // If the deleted file was being viewed, clear the view
+                        if (currentlyViewing === filename) {
+                             resultViewContainer.style.display = 'none';
+                             resultTableContainer.innerHTML = ''; 
+                             currentlyViewing = null;
+                        }
+                        loadPastResults(); // Refresh the list
+                    }
+                })
+                .catch(error => {
+                    pastResultsLoading.style.display = 'none';
+                    showPastResultsMessage(`Network error: ${error.message}`, 'error');
+                });
+            }
+            
+             function showPastResultsMessage(message, type) {
+                 pastResultsMessage.textContent = message;
+                 pastResultsMessage.style.backgroundColor = type === 'error' ? '#f8d7da' : (type === 'success' ? '#d4edda' : '#e2e3e5');
+                 pastResultsMessage.style.color = type === 'error' ? '#721c24' : (type === 'success' ? '#155724' : '#383d41');
+                 pastResultsMessage.style.border = `1px solid ${type === 'error' ? '#f5c6cb' : (type === 'success' ? '#c3e6cb' : '#d6d8db')}`;
+                 pastResultsMessage.style.display = 'block';
+            }
+
         });
     </script>
 </body>

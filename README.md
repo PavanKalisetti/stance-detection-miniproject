@@ -25,6 +25,21 @@ The API will be available at http://localhost:5000
 
 ## Usage
 
+### Web Interface
+
+The web application provides two ways to analyze text:
+
+1. **Manual Input**: Enter text directly in the text area or select from example texts
+2. **CSV Upload**: Upload a CSV file with a "post" column and select rows to analyze
+
+### CSV Requirements
+
+When uploading a CSV file:
+- The file must contain a column named "post" with the text content to analyze
+- After uploading, you can select any row to analyze the stance
+
+### API Endpoints
+
 Send a POST request to `/detect_stance` with a JSON body containing the text to analyze:
 
 ```bash
@@ -35,7 +50,7 @@ curl -X POST http://localhost:5000/detect_stance \
 
 ### Response Format
 
-The API returns a JSON object with the response from Gemini:
+The API returns a JSON object with the target and stance:
 
 ```json
 {
