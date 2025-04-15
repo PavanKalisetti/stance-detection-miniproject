@@ -443,6 +443,7 @@
             <ul id="past-evaluations-list"></ul>
             <div id="eval-view-container" style="margin-top: 20px;">
                  <h4 id="eval-view-filename" style="display: none;">Viewing: </h4>
+                 <div id="eval-averages" style="display:none; margin-bottom: 16px; padding: 10px; background: #eaf6fb; border-radius: 6px;"></div>
                  <div id="eval-table-container"></div>
             </div>
              <div class="loading" id="past-evaluations-loading" style="display: none;">
@@ -1026,6 +1027,7 @@
                 pastEvaluationsLoading.style.display = 'block';
                 pastEvaluationsMessage.style.display = 'none';
                 evalTableContainer.innerHTML = '';
+                document.getElementById('eval-averages').style.display = 'none';
 
                 fetch(`/view_evaluation/${filename}`) // Use new endpoint
                     .then(response => {
@@ -1041,6 +1043,7 @@
                             evalViewContainer.style.display = 'none';
                         } else if (data.data) {
                             currentlyViewingEvaluation = filename;
+                            displayEvaluationAverages(data.average);
                             displayEvaluationInTable(data.data, filename);
                         } else {
                             showPastEvaluationsMessage('No data found in file.', 'info');
@@ -1052,6 +1055,23 @@
                         showPastEvaluationsMessage(`Error fetching evaluation: ${error.message}`, 'error');
                         evalViewContainer.style.display = 'none';
                     });
+            }
+
+            function displayEvaluationAverages(average) {
+                const avgDiv = document.getElementById('eval-averages');
+                if (average && (average.stance_match_pct !== null || average.target_match_pct !== null)) {
+                    let html = '<strong>Average Results:</strong><br>';
+                    if (average.stance_match_pct !== null) {
+                        html += `Average Stance Match: <b>${average.stance_match_pct}%</b><br>`;
+                    }
+                    if (average.target_match_pct !== null) {
+                        html += `Average Target Match: <b>${average.target_match_pct}%</b>`;
+                    }
+                    avgDiv.innerHTML = html;
+                    avgDiv.style.display = 'block';
+                } else {
+                    avgDiv.style.display = 'none';
+                }
             }
 
             function displayEvaluationInTable(resultsData, filename) {
@@ -1153,4 +1173,4 @@
         });
     </script>
 </body>
-</html> 
+</html>

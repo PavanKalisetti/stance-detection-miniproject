@@ -518,7 +518,7 @@ def list_evaluations():
 
 @app.route('/view_evaluation/<filename>', methods=['GET'])
 def view_evaluation(filename):
-    """Reads and returns the content of an evaluation result CSV."""
+    """Reads and returns the content of an evaluation result CSV, including averages."""
     safe_filename = secure_filename(filename)
     file_path = os.path.join(EVALUATION_DIR, safe_filename)
     
@@ -529,7 +529,20 @@ def view_evaluation(filename):
         df = pd.read_csv(file_path)
         json_string = df.to_json(orient='records', date_format='iso')
         results_data = json.loads(json_string)
-        return jsonify({"data": results_data})
+        # Compute averages for Stance Match Pct and Target Match Pct
+        stance_col = 'Stance Match Pct'
+        target_col = 'Target Match Pct'
+        stance_vals = pd.to_numeric(df[stance_col], errors='coerce') if stance_col in df else pd.Series(dtype=float)
+        target_vals = pd.to_numeric(df[target_col], errors='coerce') if target_col in df else pd.Series(dtype=float)
+        stance_avg = stance_vals[stance_vals >= 0].mean() if not stance_vals.empty else None
+        target_avg = target_vals[target_vals >= 0].mean() if not target_vals.empty else None
+        return jsonify({
+            "data": results_data,
+            "average": {
+                "stance_match_pct": round(stance_avg, 2) if stance_avg is not None and not pd.isna(stance_avg) else None,
+                "target_match_pct": round(target_avg, 2) if target_avg is not None and not pd.isna(target_avg) else None
+            }
+        })
     except Exception as e:
         return jsonify({"error": f"Could not read or process evaluation file: {str(e)}"}), 500
 
