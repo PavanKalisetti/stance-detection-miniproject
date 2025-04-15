@@ -12,6 +12,7 @@ import queue
 import uuid
 import time
 import google.api_core.exceptions # Import exception for retries
+import requests # For calling DeepSeek API
 
 # Import evaluation functions
 from evaluate import evaluate_results_background
@@ -22,6 +23,10 @@ load_dotenv()
 # Configure the Gemini API
 api_key = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=api_key)
+
+# Load DeepSeek API Key
+deepseek_api_key = os.environ.get("DEEPSEEK_API_KEY")
+DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
 app = Flask(__name__)
 
@@ -50,10 +55,159 @@ def load_csv_data(file_path):
 def index():
     return render_template('index.html')
 
-def analyze_stance(input_text):
+# --- LLM Interaction Abstraction --- #
+
+def call_llm(prompt_data, api_choice, task_type):
+    """Calls the selected LLM API (Gemini or DeepSeek) and returns a consistent response.
+    
+    Args:
+        prompt_data (dict): Contains data needed for the specific API call 
+                              (e.g., {'system_prompt': str, 'user_input': str} for stance).
+        api_choice (str): 'gemini' or 'deepseek'.
+        task_type (str): 'stance' or 'evaluation' (determines expected response format).
+
+    Returns:
+        dict: {'success': bool, 'content': dict or None, 'error': str or None}
+              'content' will contain the parsed response (e.g., {'target': str, 'stance': str} for stance).
+    """
+    
+    max_retries = 3
+    base_delay = 1 # seconds
+    last_exception_str = None
+    
+    for attempt in range(max_retries):
+        try:
+            if api_choice == 'gemini':
+                # --- Gemini Call Logic --- # (Adapted from analyze_stance)
+                if task_type == 'stance':
+                    if not genai.config.is_configured(): # Ensure configured in this context
+                         genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+                         
+                    model = genai.GenerativeModel('gemini-1.5-pro')
+                    chat = model.start_chat(history=[
+                        {"role": "user", "parts": [prompt_data['system_prompt']]},
+                        {"role": "model", "parts": ["I'll analyze text and respond with only a JSON object containing the target and stance."]}
+                    ])
+                    response = chat.send_message(prompt_data['user_input'])
+                    response_text = response.text.strip()
+                    
+                    # Extract JSON
+                    if not response_text.startswith('{'):
+                        import re
+                        json_match = re.search(r'({.*})', response_text, re.DOTALL)
+                        if json_match:
+                            response_text = json_match.group(1)
+                    
+                    parsed_response = json.loads(response_text)
+                    
+                    # Basic validation (more detailed in analyze_stance)
+                    if 'target' in parsed_response and 'stance' in parsed_response:
+                        return {'success': True, 'content': parsed_response, 'error': None}
+                    else:
+                        raise ValueError("Gemini response missing target or stance.")
+                else:
+                    # Handle other task types for Gemini later (e.g., evaluation)
+                    return {'success': False, 'content': None, 'error': f"Gemini task type '{task_type}' not implemented in call_llm."}
+
+            elif api_choice == 'deepseek':
+                # --- DeepSeek Call Logic --- #
+                if task_type == 'stance':
+                    if not deepseek_api_key:
+                        return {'success': False, 'content': None, 'error': "DeepSeek API key not configured."}
+                        
+                    headers = {
+                        'Authorization': f'Bearer {deepseek_api_key}',
+                        'Content-Type': 'application/json'
+                    }
+                    # DeepSeek uses messages format similar to OpenAI
+                    payload = {
+                        "model": "deepseek-chat", # Or deepseek-coder if preferred
+                        "messages": [
+                            {"role": "system", "content": prompt_data['system_prompt']},
+                            {"role": "user", "content": prompt_data['user_input']}
+                        ],
+                         "stream": False, # We want the full response
+                         "response_format": { "type": "json_object" } # Request JSON output
+                    }
+                    
+                    response = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=60) # Add timeout
+                    response.raise_for_status() # Raise HTTPError for bad status codes (4xx or 5xx)
+                    
+                    response_data = response.json()
+                    
+                    # Check for DeepSeek-specific errors if any in response body
+                    if 'error' in response_data:
+                        raise Exception(f"DeepSeek API Error: {response_data['error']}")
+                        
+                    # Extract content (assuming it follows OpenAI structure)
+                    message_content = response_data.get('choices', [{}])[0].get('message', {}).get('content', '')
+                    if not message_content:
+                         raise ValueError("DeepSeek response did not contain message content.")
+                         
+                    # Parse the JSON string within the content
+                    parsed_response = json.loads(message_content)
+                    
+                    # Basic validation
+                    if 'target' in parsed_response and 'stance' in parsed_response:
+                        return {'success': True, 'content': parsed_response, 'error': None}
+                    else:
+                        raise ValueError("DeepSeek response missing target or stance.")
+                else:
+                     # Handle other task types for DeepSeek later
+                     return {'success': False, 'content': None, 'error': f"DeepSeek task type '{task_type}' not implemented in call_llm."}
+            
+            else:
+                return {'success': False, 'content': None, 'error': f"Unknown api_choice: {api_choice}"}
+
+        # --- Exception Handling with Retries --- #
+        except (google.api_core.exceptions.DeadlineExceeded, google.api_core.exceptions.ResourceExhausted, requests.exceptions.Timeout, requests.exceptions.RequestException) as e:
+            last_exception_str = str(e)
+            status_code = getattr(e, 'response', None) and getattr(e.response, 'status_code', None)
+            error_type = type(e).__name__
+            
+            # Specific check for DeepSeek 429/500/503 for retry
+            should_retry = True
+            if isinstance(e, requests.exceptions.HTTPError):
+                 if status_code in [429, 500, 503]: # Rate limit or server error
+                     logger_msg = f"LLM Call Attempt {attempt + 1} failed: HTTP {status_code} ({error_type}). Retrying..."
+                 else:
+                     logger_msg = f"LLM Call Attempt {attempt + 1} failed: HTTP {status_code} ({error_type}). Not retrying."
+                     should_retry = False
+            elif isinstance(e, google.api_core.exceptions.ResourceExhausted):
+                 logger_msg = f"LLM Call Attempt {attempt + 1} failed: Gemini Rate Limit/Quota. Retrying..."
+            elif isinstance(e, google.api_core.exceptions.DeadlineExceeded) or isinstance(e, requests.exceptions.Timeout):
+                 logger_msg = f"LLM Call Attempt {attempt + 1} failed: Timeout ({error_type}). Retrying..."
+            else: # Other RequestException
+                 logger_msg = f"LLM Call Attempt {attempt + 1} failed: Network/Request Error ({error_type}). Retrying..."
+            
+            app.logger.warning(logger_msg)
+            
+            if should_retry and attempt < max_retries - 1:
+                time.sleep(base_delay * (2**attempt))
+            else:
+                 app.logger.error(f"LLM Call failed after {max_retries} attempts or non-retryable error. Last error: {last_exception_str}")
+                 return {'success': False, 'content': None, 'error': f"API Error after retries: {last_exception_str}"}
+
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+             # Catch parsing errors or missing keys
+             last_exception_str = f"Response parsing error: {str(e)}"
+             app.logger.error(f"LLM Call failed: {last_exception_str}")
+             return {'success': False, 'content': None, 'error': last_exception_str}
+             
+        except Exception as e:
+            # Catch any other unexpected errors
+            last_exception_str = f"Unexpected error: {str(e)}"
+            app.logger.error(f"LLM Call failed: {last_exception_str}", exc_info=True)
+            return {'success': False, 'content': None, 'error': last_exception_str}
+
+    # Should not be reached if logic is correct
+    return {'success': False, 'content': None, 'error': f"LLM Call failed after {max_retries} attempts (unknown reason). Last error: {last_exception_str}"}
+
+def analyze_stance(input_text, api_choice='gemini'):
     if not input_text or not isinstance(input_text, str) or input_text.strip() == "":
         return {"target": "ERROR", "stance": "Input text invalid or empty"}
-    # System prompt for stance detection with structured output
+        
+    # --- Define prompts --- #
     system_prompt = """
     You are a stance detection system. Analyze the given text and identify:
     1. The target - what the text is discussing or taking a stance on. IMPORTANT: The target must be only 1-4 words maximum.
@@ -68,81 +222,31 @@ def analyze_stance(input_text):
     Where STANCE is one of: FAVOR, AGAINST, or NEUTRAL.
     Do not include any explanation or additional text in your response.
     """
-    
-    # Generate response from Gemini
-    model = genai.GenerativeModel('gemini-1.5-pro')
-    
-    chat = model.start_chat(history=[
-        {
-            "role": "user",
-            "parts": [system_prompt]
-        },
-        {
-            "role": "model",
-            "parts": ["I'll analyze text and respond with only a JSON object containing the target and stance."]
-        }
-    ])
-    
-    # --- Add Retry Logic --- #
-    max_retries = 3
-    base_delay = 1 # seconds
-    response = None
-    last_exception = None
-    
-    for attempt in range(max_retries):
-        try:
-            response = chat.send_message(input_text)
-            # If successful, break the loop
-            break 
-        except google.api_core.exceptions.DeadlineExceeded as e:
-            last_exception = e
-            app.logger.warning(f"Attempt {attempt + 1} failed: DeadlineExceeded. Retrying in {base_delay * (2**attempt)}s...")
-            if attempt < max_retries - 1:
-                time.sleep(base_delay * (2**attempt))
-            else:
-                 app.logger.error(f"All {max_retries} attempts failed for DeadlineExceeded.")
-                 # Let the exception propagate or return specific error
-                 return {"target": "ERROR", "stance": f"API Timeout after {max_retries} retries ({str(e)})"}
-        except Exception as e:
-             # Catch other potential exceptions during send_message
-             app.logger.error(f"Attempt {attempt + 1} failed with non-timeout error: {str(e)}")
-             return {"target": "ERROR", "stance": f"API Error during send: {str(e)}"}
-    # --- End Retry Logic --- #
-    
-    # Proceed only if response was successful
-    if response is None:
-         # Should have been handled by exception returns, but as a safeguard:
-         return {"target": "ERROR", "stance": f"Failed to get response after retries. Last error: {str(last_exception)}"}
-    
+    prompt_data = {
+        'system_prompt': system_prompt,
+        'user_input': input_text
+    }
+
+    # --- Call the LLM abstraction --- #
+    # In a full implementation, api_choice would come from the request
+    llm_response = call_llm(prompt_data, api_choice, 'stance') 
+
+    # --- Process the standardized response --- #
+    if not llm_response['success']:
+        # Return error from call_llm
+        return {"target": "LLM_ERROR", "stance": llm_response['error']}
+
+    # --- Post-process and validate the successful content --- #    
+    parsed_response = llm_response['content']
     try:
-        # Try to parse the response as JSON
-        response_text = response.text.strip()
-        
-        # Extract JSON if it's embedded in text (sometimes the model adds extra text)
-        if not response_text.startswith('{'):
-            import re
-            json_match = re.search(r'({.*})', response_text, re.DOTALL)
-            if json_match:
-                response_text = json_match.group(1)
-                
-        # Parse and validate the JSON
-        parsed_response = json.loads(response_text)
-        
-        # Ensure required fields are present
+        # Ensure required fields are present (redundant but safe)
         if 'target' not in parsed_response or 'stance' not in parsed_response:
-            return {
-                "error": "Invalid response format from model",
-                "raw_response": response.text
-            }
+            return {"target": "LLM_ERROR", "stance": "API response missing target/stance after call."} 
             
         # Validate target length (1-4 words)
         target_words = parsed_response['target'].split()
         if len(target_words) > 4:
-            # Attempt to use the first 4 words, but handle if target is invalid
-            try:
-                parsed_response['target'] = ' '.join(target_words[:4])
-            except Exception:
-                parsed_response['target'] = "TARGET_PARSE_ERROR"
+            parsed_response['target'] = ' '.join(target_words[:4])
             
         # Normalize stance to uppercase
         parsed_response['stance'] = parsed_response['stance'].upper()
@@ -150,22 +254,17 @@ def analyze_stance(input_text):
         # Validate stance value
         valid_stances = ["FAVOR", "AGAINST", "NEUTRAL"]
         if parsed_response['stance'] not in valid_stances:
-            parsed_response['stance'] = "NEUTRAL"
+             app.logger.warning(f"Invalid stance '{parsed_response['stance']}' received, defaulting to NEUTRAL.")
+             parsed_response['stance'] = "NEUTRAL"
         
-        return parsed_response
+        return parsed_response # Return the processed content
         
-    except json.JSONDecodeError:
-        # If the response isn't valid JSON, return the raw text with error indication
-        return {
-            "target": "ERROR", 
-            "stance": "Model response not JSON", 
-            "raw_response": response.text
-        }
     except Exception as e:
-        # Catch any other exceptions during processing
-        return {"target": "ERROR", "stance": f"Processing error: {str(e)}"}
+        # Catch unexpected errors during post-processing
+        app.logger.error(f"Error post-processing LLM response: {str(e)}")
+        return {"target": "PROCESS_ERROR", "stance": f"Error processing successful LLM response: {str(e)}"}
 
-def process_csv_background(task_id, file_stream_data, filename, text_column, gt_target_column, gt_stance_column, start_row):
+def process_csv_background(task_id, file_stream_data, filename, text_column, gt_target_column, gt_stance_column, start_row, api_choice):
     """Background task to process the CSV and send progress."""
     task = active_tasks.get(task_id)
     if not task:
@@ -216,7 +315,7 @@ def process_csv_background(task_id, file_stream_data, filename, text_column, gt_
                 "text": (input_text[:75] + '...') if len(input_text) > 75 else input_text
             }))
             
-            analysis_result = analyze_stance(input_text)
+            analysis_result = analyze_stance(input_text, api_choice=api_choice)
             request_count += 1 # Increment after successful API call
             
             # Put result after calling LLM
@@ -349,7 +448,8 @@ def detect_stance():
         return jsonify({"error": "No text provided"}), 400
     
     input_text = data['text']
-    result = analyze_stance(input_text)
+    api_choice = data.get('api_choice', 'gemini') # Get API choice from JSON
+    result = analyze_stance(input_text, api_choice=api_choice)
     
     if "error" in result:
         return jsonify(result), 500
@@ -465,6 +565,7 @@ def analyze_csv():
     gt_target_column = request.form.get('gt_target_column') or "GT Target" 
     gt_stance_column = request.form.get('gt_stance_column') or "GT Stance" 
     start_row = int(request.form.get('start_row', 1)) 
+    api_choice = request.form.get('api_choice', 'gemini') # Get API choice
 
     if file.filename == '':
         return jsonify({"error": "No file selected"}), 400
@@ -486,7 +587,7 @@ def analyze_csv():
 
     thread = threading.Thread(
         target=process_csv_background, 
-        args=(task_id, file_stream_data, file.filename, text_column, gt_target_column, gt_stance_column, start_row)
+        args=(task_id, file_stream_data, file.filename, text_column, gt_target_column, gt_stance_column, start_row, api_choice)
     )
 
     active_tasks[task_id] = {
@@ -521,6 +622,7 @@ def evaluate_page(filename):
 def start_evaluation():
     data = request.json
     filename = data.get('filename')
+    api_choice = data.get('api_choice', 'gemini') # Get API choice
     
     if not filename:
         return jsonify({"error": "Filename not provided"}), 400
@@ -544,7 +646,8 @@ def start_evaluation():
             EVALUATION_DIR,    # Pass evaluation dir path
             task_queue,        # Pass the queue
             stop_event,        # Pass the stop event
-            app.logger         # Pass the logger instance
+            app.logger,        # Pass the logger instance
+            api_choice         # Pass API choice
             )
     )
 

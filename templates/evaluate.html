@@ -86,6 +86,12 @@
         <p>Evaluating file: <strong id="filename-display">{{ filename }}</strong></p>
         <p>This process uses the Gemini LLM to compare the predicted target/stance against the ground truth target/stance for each row and assigns a percentage score (0-100) for the match.</p>
         
+        <div style="margin-bottom: 15px;">
+            <strong>Select API for Evaluation:</strong>
+            <label style="margin-left: 10px;"><input type="radio" name="apiChoiceEval" value="gemini" checked> Gemini</label>
+            <label style="margin-left: 10px;"><input type="radio" name="apiChoiceEval" value="deepseek"> DeepSeek</label>
+        </div>
+        
         <button id="startEvaluationBtn">Start Evaluation</button>
         <button id="stopEvaluationBtn" style="display: none;">Stop Evaluation</button>
         
@@ -113,6 +119,7 @@
         const progressSummary = document.getElementById('progress-summary');
         const loadingIndicator = document.getElementById('loading-indicator');
         const messageArea = document.getElementById('message-area');
+        const apiChoiceEvalRadios = document.querySelectorAll('input[name="apiChoiceEval"]');
 
         let currentTaskID = null;
         let eventSource = null;
@@ -133,12 +140,20 @@
             messageArea.style.display = 'none';
             loadingIndicator.style.display = 'block';
 
+            // Get selected API
+            let selectedApiEval = 'gemini'; // Default
+            apiChoiceEvalRadios.forEach(radio => {
+                if (radio.checked) {
+                    selectedApiEval = radio.value;
+                }
+            });
+
             fetch('/start_evaluation', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ filename: filename }),
+                body: JSON.stringify({ filename: filename, api_choice: selectedApiEval }),
             })
             .then(response => {
                 loadingIndicator.style.display = 'none';

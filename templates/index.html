@@ -237,6 +237,7 @@
         /* Style evaluation percentages */
         #eval-table td.pct-cell {
             text-align: center;
+            font-weight: bold;
         }
         #eval-table td.pct-cell.low {
              background-color: #f8d7da;
@@ -246,6 +247,78 @@
         }
         #eval-table td.pct-cell.high {
              background-color: #d4edda;
+        }
+        /* General table cell styles */
+        #result-table th, #result-table td,
+        #eval-table th, #eval-table td {
+             border: 1px solid #ddd;
+             padding: 8px;
+             text-align: left;
+             font-size: 14px;
+             word-break: break-word;
+        }
+        /* Sticky table headers */
+        #result-table th, #eval-table th {
+             background-color: #f2f2f2;
+             position: sticky;
+             top: 0;
+             z-index: 1;
+        }
+        /* Zebra striping for evaluation table */
+        #eval-table tbody tr:nth-child(even) {
+             background-color: #f9f9f9;
+        }
+         #result-table td span.stance,
+         #eval-table td span.stance {
+             font-weight: bold;
+             border-radius: 4px;
+             display: inline-block;
+             margin-right: 10px;
+             font-size: 12px; 
+             padding: 2px 5px; 
+        }
+        /* Styles for Past Results/Evaluations List Items */
+        #past-results-list li,
+        #past-evaluations-list li {
+             display: flex;
+             justify-content: space-between;
+             align-items: center;
+             padding: 10px;
+             border-bottom: 1px solid #eee;
+        }
+        #past-results-list li:last-child,
+        #past-evaluations-list li:last-child {
+             border-bottom: none;
+        }
+        /* Truncate long filenames in lists */
+        #past-results-list li > span,
+        #past-evaluations-list li > span {
+             white-space: nowrap;
+             overflow: hidden;
+             text-overflow: ellipsis;
+             max-width: 60%;
+             cursor: default;
+        }
+        .result-actions button {
+             margin-left: 5px;
+             padding: 5px 10px;
+             font-size: 14px;
+        }
+        .delete-btn {
+             background-color: #e74c3c;
+        }
+        .delete-btn:hover {
+             background-color: #c0392b;
+        }
+        #result-table-container, #eval-table-container {
+             margin-top: 20px;
+             max-height: 500px;
+             overflow: auto;
+        }
+        #result-table, #eval-table {
+             width: 100%;
+             border-collapse: collapse;
+             margin-top: 10px;
         }
     </style>
 </head>
@@ -262,6 +335,11 @@
     <div id="manual-tab" class="tab-content active">
         <div class="container">
             <textarea id="textInput" placeholder="Enter text to analyze stance..."></textarea>
+            <div style="margin-bottom: 15px;">
+                <strong>Select API:</strong>
+                <label style="margin-left: 10px;"><input type="radio" name="apiChoiceManual" value="gemini" checked> Gemini</label>
+                <label style="margin-left: 10px;"><input type="radio" name="apiChoiceManual" value="deepseek"> DeepSeek</label>
+            </div>
             <button id="analyzeBtn">Analyze Stance</button>
             
             <div class="loading" id="loading">
@@ -312,6 +390,11 @@
                 <label for="startRow">Start processing from row number:</label>
                 <input type="number" id="startRow" value="1" min="1" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 80px;">
             </div>
+            <div style="margin-bottom: 15px;">
+                <strong>Select API:</strong>
+                <label style="margin-left: 10px;"><input type="radio" name="apiChoiceCsv" value="gemini" checked> llama_8b</label>
+                <label style="margin-left: 10px;"><input type="radio" name="apiChoiceCsv" value="deepseek"> mistral</label>
+            </div>
             
             <div class="file-upload">
                 <input type="file" id="csvFile" accept=".csv" required>
@@ -333,8 +416,8 @@
                 <p id="progress-summary"></p>
             </div>
         </div>
-            </div>
-            
+    </div>
+    
     <!-- Past Results Tab -->
     <div id="past-results-tab" class="tab-content">
         <div class="container">
@@ -396,6 +479,7 @@
             const resultDiv = document.getElementById('result');
             const loadingDiv = document.getElementById('loading');
             const examples = document.querySelectorAll('.example');
+            const apiChoiceManualRadios = document.querySelectorAll('input[name="apiChoiceManual"]');
             
             analyzeBtn.addEventListener('click', analyzeText);
             
@@ -412,6 +496,14 @@
                     return;
                 }
                 
+                // Get selected API
+                let selectedApiManual = 'gemini'; // Default
+                apiChoiceManualRadios.forEach(radio => {
+                    if (radio.checked) {
+                        selectedApiManual = radio.value;
+                    }
+                });
+                
                 // Show loading
                 loadingDiv.style.display = 'block';
                 resultDiv.style.display = 'none';
@@ -421,7 +513,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ text: text }),
+                    body: JSON.stringify({ text: text, api_choice: selectedApiManual }),
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -456,6 +548,7 @@
             const gtTargetColumnInput = document.getElementById('gtTargetColumn');
             const gtStanceColumnInput = document.getElementById('gtStanceColumn');
             const startRowInput = document.getElementById('startRow');
+            const apiChoiceCsvRadios = document.querySelectorAll('input[name="apiChoiceCsv"]');
             const csvLoading = document.getElementById('csv-loading');
             const csvMessage = document.getElementById('csv-message');
             const stopAnalysisBtn = document.getElementById('stopAnalysisBtn');
@@ -476,6 +569,14 @@
                 const gtStanceColumn = gtStanceColumnInput.value.trim();
                 const startRow = parseInt(startRowInput.value, 10);
 
+                // Get selected API
+                let selectedApiCsv = 'gemini'; // Default
+                apiChoiceCsvRadios.forEach(radio => {
+                    if (radio.checked) {
+                        selectedApiCsv = radio.value;
+                    }
+                });
+
                 if (!file) {
                     showMessage('Please select a CSV file', 'error');
                     return;
@@ -495,9 +596,9 @@
                 formData.append('gt_target_column', gtTargetColumn);
                 formData.append('gt_stance_column', gtStanceColumn);
                 formData.append('start_row', startRow);
+                formData.append('api_choice', selectedApiCsv);
 
                 // Show loading indicator while starting
-                // csvLoading.style.display = 'block'; 
                 progressArea.style.display = 'none'; // Hide old progress
                 progressLog.textContent = ''; // Clear log
                 progressSummary.textContent = '';
@@ -511,7 +612,6 @@
                     body: formData,
                 })
                 .then(response => {
-                    // csvLoading.style.display = 'none';
                     if (!response.ok) {
                          // Handle HTTP errors (e.g., 400, 500)
                          return response.json().then(data => {
@@ -536,7 +636,6 @@
                     }
                 })
                 .catch(error => {
-                    // csvLoading.style.display = 'none';
                     showMessage(`Error starting analysis: ${error.message}`, 'error');
                     analyzeAllBtn.disabled = false; // Re-enable button on error
                 });
@@ -677,11 +776,6 @@
             let currentlyViewing = null; // Track which file is being viewed
 
             pastResultsTab.addEventListener('click', loadPastResults);
-
-            // Load results when the page initially loads if the tab is active (might not be needed if default is manual)
-            // if (pastResultsTab.classList.contains('active')) {
-            //     loadPastResults();
-            // }
 
             function loadPastResults() {
                 pastResultsLoading.style.display = 'block';
@@ -899,6 +993,7 @@
                                 const li = document.createElement('li');
                                 const nameSpan = document.createElement('span');
                                 nameSpan.textContent = filename;
+                                nameSpan.title = filename; // Add title attribute for full name on hover
                                 const actionsDiv = document.createElement('div');
                                 actionsDiv.className = 'result-actions';
                                 
@@ -911,7 +1006,6 @@
                                 deleteButton.className = 'delete-btn';
                                 deleteButton.onclick = () => deleteEvaluation(filename); // Use new delete function
                                 
-                                // No evaluate button needed here
                                 actionsDiv.appendChild(viewButton);
                                 actionsDiv.appendChild(deleteButton);
                                 li.appendChild(nameSpan);
