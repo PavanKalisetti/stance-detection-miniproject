@@ -28,6 +28,10 @@ genai.configure(api_key=api_key)
 deepseek_api_key = os.environ.get("DEEPSEEK_API_KEY")
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 
+# Load Ollama endpoint (optional, default to localhost)
+ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/generate")
+ollama_model = os.environ.get("OLLAMA_MODEL", "qwen2.5:1.5b")  # Default model, can be overridden per request
+
 app = Flask(__name__)
 
 RESULTS_DIR = "analysis_results"
@@ -58,12 +62,12 @@ def index():
 # --- LLM Interaction Abstraction --- #
 
 def call_llm(prompt_data, api_choice, task_type):
-    """Calls the selected LLM API (Gemini or DeepSeek) and returns a consistent response.
+    """Calls the selected LLM API (Gemini, DeepSeek, or Ollama) and returns a consistent response.
     
     Args:
         prompt_data (dict): Contains data needed for the specific API call 
                               (e.g., {'system_prompt': str, 'user_input': str} for stance).
-        api_choice (str): 'gemini' or 'deepseek'.
+        api_choice (str): 'gemini', 'deepseek', or 'ollama'.
         task_type (str): 'stance' or 'evaluation' (determines expected response format).
 
     Returns:
@@ -80,9 +84,6 @@ def call_llm(prompt_data, api_choice, task_type):
             if api_choice == 'gemini':
                 # --- Gemini Call Logic --- # (Adapted from analyze_stance)
                 if task_type == 'stance':
-                    if not genai.config.is_configured(): # Ensure configured in this context
-                         genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-                         
                     model = genai.GenerativeModel('gemini-1.5-pro')
                     chat = model.start_chat(history=[
                         {"role": "user", "parts": [prompt_data['system_prompt']]},
@@ -156,6 +157,36 @@ def call_llm(prompt_data, api_choice, task_type):
                      # Handle other task types for DeepSeek later
                      return {'success': False, 'content': None, 'error': f"DeepSeek task type '{task_type}' not implemented in call_llm."}
             
+            elif api_choice == 'ollama':
+                # Call local Ollama server
+                import requests
+                model = prompt_data.get('ollama_model', ollama_model)
+                # Compose the prompt for stance or evaluation
+                if task_type == 'stance':
+                    prompt = prompt_data['system_prompt'] + "\n" + prompt_data['user_input']
+                elif task_type == 'evaluation':
+                    prompt = prompt_data['user_input']
+                else:
+                    return {'success': False, 'content': None, 'error': f"Unknown task_type: {task_type}"}
+                payload = {
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False
+                }
+                try:
+                    response = requests.post(ollama_url, json=payload, timeout=60)
+                    response.raise_for_status()
+                    data = response.json()
+                    response_text = data.get('response', '').strip()
+                    # Extract JSON from response (Ollama may return text before/after)
+                    import re
+                    match = re.search(r'({.*?})', response_text, re.DOTALL)
+                    if match:
+                        response_text = match.group(1)
+                    parsed_response = json.loads(response_text)
+                    return {'success': True, 'content': parsed_response, 'error': None}
+                except Exception as e:
+                    return {'success': False, 'content': None, 'error': f"Ollama error: {str(e)}"}
             else:
                 return {'success': False, 'content': None, 'error': f"Unknown api_choice: {api_choice}"}
 
