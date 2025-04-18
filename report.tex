@@ -1,0 +1,95 @@
+% Document class and packages
+\documentclass[twocolumn]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage[margin=2.5cm]{geometry}
+
+% Title and author information
+\title{Stance and Target Detection using Fine-tuned LLaMA Model}
+\author{[Your Name]}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper presents a novel approach to stance and target detection using a fine-tuned LLaMA model. We combined the TSE and VAST datasets to create a comprehensive training dataset and utilized the Unsloth framework for efficient fine-tuning. Our approach demonstrates the effectiveness of large language models in understanding and classifying stance relationships between text and targets.
+\end{abstract}
+
+\section{Introduction}
+Stance detection is a crucial natural language processing task that involves determining the position or attitude expressed in a text towards a specific target. This research focuses on developing an advanced stance and target detection system using state-of-the-art language models. We leverage the power of LLaMA, a large language model, fine-tuned on a combined dataset from TSE and VAST.
+
+\subsection{Problem Statement}
+The challenge in stance detection lies in accurately identifying not only the stance (positive, negative, or neutral) but also the specific target of that stance within the text. Traditional approaches often struggle with:
+\begin{itemize}
+    \item Complex linguistic patterns and implicit stance expressions
+    \item Multiple potential targets within the same text
+    \item Context-dependent stance interpretation
+\end{itemize}
+
+\subsection{Research Objectives}
+Our primary objectives include:
+\begin{itemize}
+    \item Developing a robust stance detection model using LLaMA architecture
+    \item Creating a unified dataset by combining TSE and VAST datasets
+    \item Implementing efficient fine-tuning strategies using Unsloth framework
+    \item Evaluating the model's performance on stance and target detection tasks
+\end{itemize}
+
+\section{Literature Review}
+\subsection{Traditional Stance Detection Approaches}
+Early approaches to stance detection relied heavily on feature engineering and traditional machine learning algorithms. These methods typically involved:
+\begin{itemize}
+    \item Lexical and syntactic feature extraction
+    \item Sentiment analysis integration
+    \item Rule-based systems
+\end{itemize}
+
+\subsection{Deep Learning in Stance Detection}
+Recent advancements in deep learning have revolutionized stance detection:
+\begin{itemize}
+    \item BERT and transformer-based architectures
+    \item Attention mechanisms for target-specific stance detection
+    \item Multi-task learning approaches
+\end{itemize}
+
+\subsection{LLaMA Model Architecture}
+The LLaMA model represents a significant advancement in language model architecture:
+\begin{itemize}
+    \item Efficient scaling properties
+    \item Advanced attention mechanisms
+    \item Improved context understanding
+\end{itemize}
+
+\section{Methodology}
+\subsection{Dataset Preparation}
+Our dataset combines two major sources:
+\begin{itemize}
+    \item TSE (Twitter Stance Evaluation) dataset
+    \item VAST (Varied Stance Topics) dataset
+\end{itemize}
+
+The combined dataset features three main columns:
+\begin{itemize}
+    \item text: The input text for stance analysis
+    \item stance: The stance classification (positive, negative, neutral)
+    \item target: The specific target of the stance
+\end{itemize}
+
+\subsection{Model Architecture}
+We utilized the LLaMA 8B model with the following specifications:
+\begin{itemize}
+    \item Base model: LLaMA 8B parameters
+    \item Maximum sequence length: 2048 tokens
+    \item Quantization: 4-bit precision for efficient training
+    \item Unsloth optimization framework for faster fine-tuning
+\end{itemize}
+
+% To be continued...
+\end{document} 
