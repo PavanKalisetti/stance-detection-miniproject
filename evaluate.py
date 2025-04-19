@@ -85,65 +85,21 @@ def evaluate_results_background(task_id, analysis_filename, results_dir, evaluat
             stance_match_pct = -9
             llm_error = None
             
-            # --- Construct the prompt based on API choice --- #
-            prompt_to_use = ""
-            if api_choice == 'gemini':
-                # More detailed prompt with examples for Gemini - Adjusted for more generous target scoring
-                prompt_to_use = f"""
-                Evaluate the similarity between predicted and ground truth values for a stance detection task based on the rules below. Please be somewhat lenient/generous when scoring the target similarity.
-
-                Input:
-                Predicted Target: '{pred_target}'
-                Ground Truth Target: '{gt_target}'
-                Predicted Stance: '{pred_stance}'
-                Ground Truth Stance: '{gt_stance}'
-
-                Evaluation Rules & Scoring (0-100):
-                1. target_match_pct: Rate the conceptual overlap and relevance between Predicted Target and Ground Truth Target. Give high scores (80-100) if they refer to the same core subject, even with different phrasing (e.g., 'Climate Action Plans' vs 'Climate Change Action'). Give medium-high scores (60-80) if one is a clear subset/superset or directly related concept (e.g., 'School Mask Mandates' vs 'Face Masks'). Assign low scores only if the topics are significantly distinct.
-                2. stance_match_pct: Score the agreement between Predicted Stance and Ground Truth Stance based on these fixed rules:
-                    - Identical (FAVOR vs FAVOR, AGAINST vs AGAINST, NEUTRAL vs NEUTRAL): 100
-                    - Opposite (FAVOR vs AGAINST, AGAINST vs FAVOR): 0
-                    - Partial (NEUTRAL vs FAVOR, FAVOR vs NEUTRAL, NEUTRAL vs AGAINST, AGAINST vs NEUTRAL): 50
-
-                Example 1:
-                Input: PT='Climate Action', GT T='Climate Change Action', PS='FAVOR', GT S='FAVOR'
-                Output JSON: {{"target_match_pct": 95, "stance_match_pct": 100}} # High similarity
-
-                Example 2:
-                Input: PT='New Policy', GT T='Tax Law', PS='AGAINST', GT S='FAVOR'
-                Output JSON: {{"target_match_pct": 65, "stance_match_pct": 0}} # Moderately related
-
-                Example 3:
-                Input: PT='Teaching Creationism', GT T='Creationism', PS='AGAINST', GT S='AGAINST'
-                Output JSON: {{"target_match_pct": 90, "stance_match_pct": 100}} # High similarity (Specific vs General)
-
-                Example 4:
-                Input: PT='AI Risks', GT T='AI Dangers', PS='NEUTRAL', GT S='AGAINST'
-                Output JSON: {{"target_match_pct": 90, "stance_match_pct": 50}}
-
-                Example 5:
-                Input: PT='The Election', GT T='COVID-19 Vaccines', PS='NEUTRAL', GT S='FAVOR'
-                Output JSON: {{"target_match_pct": 10, "stance_match_pct": 50}} # Low similarity
-
-                Now, evaluate the provided Input based on the rules and examples, applying a slightly more generous interpretation for `target_match_pct` as instructed. Respond ONLY with a valid JSON object containing the two integer scores:
-                {{"target_match_pct": <integer_score>, "stance_match_pct": <integer_score>}}
-                """
-            else: # Default/DeepSeek prompt (original version)
-                prompt_to_use = f"""
-                Evaluate the similarity between predicted and ground truth values for a stance detection task.
-                Predicted Target: '{pred_target}'
-                Ground Truth Target: '{gt_target}'
-                Predicted Stance: '{pred_stance}'
-                Ground Truth Stance: '{gt_stance}'
-                
-                Provide two scores:
-                1. target_match_pct: Semantic similarity between targets (0-100).
-                2. stance_match_pct: Similarity between stances (0-100). Consider FAVOR/AGAINST opposites (0), NEUTRAL vs FAVOR/AGAINST partial match (e.g., 50), identical match 100.
-                
-                Respond ONLY with a valid JSON object in the format:
-                {{"target_match_pct": <integer_score>, "stance_match_pct": <integer_score>}}
-                """
-            # --- End Prompt Construction --- #
+            # Construct the single prompt asking for JSON output
+            combined_prompt = f"""
+            Evaluate the similarity between predicted and ground truth values for a stance detection task.
+            Predicted Target: '{pred_target}'
+            Ground Truth Target: '{gt_target}'
+            Predicted Stance: '{pred_stance}'
+            Ground Truth Stance: '{gt_stance}'
+            
+            Provide two scores:
+            1. target_match_pct: Semantic similarity between targets (0-100).
+            2. stance_match_pct: Similarity between stances (0-100). Consider FAVOR/AGAINST opposites (0), NEUTRAL vs FAVOR/AGAINST partial match (e.g., 50), identical match 100.
+            
+            Respond ONLY with a valid JSON object in the format:
+            {{"target_match_pct": <integer_score>, "stance_match_pct": <integer_score>}}
+            """
 
             last_exception = None
             for attempt in range(max_retries):
@@ -151,7 +107,7 @@ def evaluate_results_background(task_id, analysis_filename, results_dir, evaluat
                     response_json = None
                     if api_choice == 'gemini':
                         # Gemini call
-                        response = gemini_model.generate_content(prompt_to_use)
+                        response = gemini_model.generate_content(combined_prompt)
                         response_text = response.text.strip()
                         # Extract JSON (Gemini might add backticks or other text)
                         if '```json' in response_text:
@@ -172,7 +128,7 @@ def evaluate_results_background(task_id, analysis_filename, results_dir, evaluat
                         # DeepSeek call
                         payload = {
                             "model": "deepseek-chat", 
-                            "messages": [{"role": "user", "content": prompt_to_use}],
+                            "messages": [{"role": "user", "content": combined_prompt}],
                             "stream": False,
                             "response_format": { "type": "json_object" }
                         }
