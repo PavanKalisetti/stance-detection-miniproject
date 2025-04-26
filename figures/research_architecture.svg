@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background -->
+    <rect width="100%" height="100%" fill="#ffffff"/>
+    
+    <!-- Title -->
+    <text x="600" y="50" text-anchor="middle" font-family="Arial" font-size="24" font-weight="bold">Research Architecture for Open-Target Stance Detection</text>
+
+    <!-- Training Data Section -->
+    <g transform="translate(100,150)">
+        <rect x="0" y="0" width="180" height="80" rx="10" fill="#e6f3ff" stroke="#2196F3" stroke-width="2"/>
+        <text x="90" y="35" text-anchor="middle" font-family="Arial" font-size="16">VAST Dataset</text>
+        <text x="90" y="60" text-anchor="middle" font-family="Arial" font-size="14">Training Data</text>
+    </g>
+    
+    <g transform="translate(100,250)">
+        <rect x="0" y="0" width="180" height="80" rx="10" fill="#e6f3ff" stroke="#2196F3" stroke-width="2"/>
+        <text x="90" y="35" text-anchor="middle" font-family="Arial" font-size="16">TSE Dataset</text>
+        <text x="90" y="60" text-anchor="middle" font-family="Arial" font-size="14">Training Data</text>
+    </g>
+
+    <!-- Model Section -->
+    <g transform="translate(400,200)">
+        <rect x="0" y="0" width="220" height="120" rx="10" fill="#f3e5f5" stroke="#9c27b0" stroke-width="2"/>
+        <text x="110" y="40" text-anchor="middle" font-family="Arial" font-size="16" font-weight="bold">LLaMA 8B</text>
+        <text x="110" y="65" text-anchor="middle" font-family="Arial" font-size="14">Fine-tuned Model</text>
+        <text x="110" y="90" text-anchor="middle" font-family="Arial" font-size="12">(LoRA + PEFT)</text>
+    </g>
+
+    <!-- Prediction Section -->
+    <g transform="translate(700,200)">
+        <rect x="0" y="0" width="180" height="120" rx="10" fill="#e8f5e9" stroke="#4caf50" stroke-width="2"/>
+        <text x="90" y="45" text-anchor="middle" font-family="Arial" font-size="16">Model Output</text>
+        <text x="90" y="70" text-anchor="middle" font-family="Arial" font-size="14">Target + Stance</text>
+        <text x="90" y="95" text-anchor="middle" font-family="Arial" font-size="12">Predictions</text>
+    </g>
+
+    <!-- Evaluation Section -->
+    <g transform="translate(950,100)">
+        <rect x="0" y="0" width="180" height="80" rx="10" fill="#fff3e0" stroke="#ff9800" stroke-width="2"/>
+        <text x="90" y="35" text-anchor="middle" font-family="Arial" font-size="16">Gemini</text>
+        <text x="90" y="60" text-anchor="middle" font-family="Arial" font-size="14">Evaluation</text>
+    </g>
+
+    <g transform="translate(950,220)">
+        <rect x="0" y="0" width="180" height="80" rx="10" fill="#fff3e0" stroke="#ff9800" stroke-width="2"/>
+        <text x="90" y="35" text-anchor="middle" font-family="Arial" font-size="16">DeepSeek</text>
+        <text x="90" y="60" text-anchor="middle" font-family="Arial" font-size="14">Evaluation</text>
+    </g>
+
+    <g transform="translate(920,340)">
+        <rect x="0" y="0" width="240" height="80" rx="10" fill="#fff3e0" stroke="#ff9800" stroke-width="2"/>
+        <text x="120" y="35" text-anchor="middle" font-family="Arial" font-size="16">BERTweet</text>
+        <text x="120" y="60" text-anchor="middle" font-family="Arial" font-size="14">Semantic Similarity</text>
+    </g>
+
+    <!-- Arrows -->
+    <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
+        </marker>
+    </defs>
+
+    <!-- Training Data to Model Arrows -->
+    <path d="M 280,190 L 400,260" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <path d="M 280,290 L 400,260" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+    <!-- Model to Output Arrow -->
+    <path d="M 620,260 L 700,260" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+    <!-- Output to Evaluation Arrows -->
+    <path d="M 880,260 L 950,140" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <path d="M 880,260 L 950,260" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <path d="M 880,260 L 920,380" stroke="#666" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+    <!-- Legend -->
+    <g transform="translate(100,600)">
+        <text x="0" y="0" font-family="Arial" font-size="16" font-weight="bold">Legend:</text>
+        <rect x="0" y="20" width="20" height="20" fill="#e6f3ff" stroke="#2196F3" stroke-width="2"/>
+        <text x="30" y="35" font-family="Arial" font-size="14">Training Data</text>
+        
+        <rect x="200" y="20" width="20" height="20" fill="#f3e5f5" stroke="#9c27b0" stroke-width="2"/>
+        <text x="230" y="35" font-family="Arial" font-size="14">Model</text>
+        
+        <rect x="400" y="20" width="20" height="20" fill="#e8f5e9" stroke="#4caf50" stroke-width="2"/>
+        <text x="430" y="35" font-family="Arial" font-size="14">Predictions</text>
+        
+        <rect x="600" y="20" width="20" height="20" fill="#fff3e0" stroke="#ff9800" stroke-width="2"/>
+        <text x="630" y="35" font-family="Arial" font-size="14">Evaluation Methods</text>
+    </g>
+</svg> 

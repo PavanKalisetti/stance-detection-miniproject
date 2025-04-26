@@ -1,0 +1,57 @@
+<svg width="800" height="350" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+    refX="0" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+  </defs>
+  
+  <style>
+    .title { font-family: Arial, sans-serif; font-size: 24px; font-weight: bold; text-anchor: middle; }
+    .box { rx: 10; ry: 10; stroke-width: 2; fill: #f8f9fa; }
+    .box-input { stroke: #6c757d; }
+    .box-model { stroke: #007bff; fill: #e7f5ff; }
+    .box-output { stroke: #28a745; fill: #e9f7ef; }
+    .box-text-title { font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-anchor: middle; }
+    .box-text-desc { font-family: Arial, sans-serif; font-size: 13px; text-anchor: middle; fill: #495057; }
+    .box-text-code { font-family: 'Courier New', Courier, monospace; font-size: 11px; text-anchor: start; fill: #212529; }
+    .label { font-family: Arial, sans-serif; font-size: 12px; text-anchor: middle; fill: #007bff; }
+    .arrow { stroke: #333; stroke-width: 1.5; marker-end: url(#arrowhead); }
+  </style>
+
+  <!-- Title -->
+  <text x="400" y="40" class="title">High-Level OTSD System Diagram</text>
+
+  <!-- Input Box -->
+  <rect x="50" y="100" width="200" height="120" class="box box-input" />
+  <text x="150" y="140" class="box-text-title">Input: Raw Text</text>
+  <text x="150" y="170" class="box-text-desc">(e.g., Social media post,</text>
+  <text x="150" y="190" class="box-text-desc">News comment, etc.)</text>
+
+  <!-- Model Box -->
+  <rect x="300" y="100" width="250" height="140" class="box box-model" />
+  <text x="425" y="135" class="box-text-title">Finetuned Llama 3.1 (8B)</text>
+  <text x="425" y="155" class="box-text-title">with LoRA</text>
+  <text x="425" y="190" class="box-text-desc">• 4-bit Quantization</text>
+  <text x="425" y="210" class="box-text-desc">• Unsloth Library</text>
+  
+  <!-- Optimization Label -->
+  <!-- <rect x="345" y="65" width="165" height="20" rx="5" ry="5" stroke="#007bff" stroke-dasharray="4 2" fill="white" />
+  <text x="425" y="79" class="label">Optimizations Applied</text> -->
+
+  <!-- Output Box -->
+  <rect x="600" y="100" width="170" height="140" class="box box-output" />
+  <text x="685" y="130" class="box-text-title">Output:</text>
+  <text x="685" y="150" class="box-text-title">Structured Data</text>
+  
+  <!-- Structure with left alignment and proper indentation -->
+  <g transform="translate(625,180)">
+    <text y="20" class="box-text-code">"Target": ...</text>
+    <text y="40" class="box-text-code">"Stance": ...</text>
+  </g>
+
+  <!-- Arrows -->
+  <line x1="250" y1="170" x2="300" y2="170" class="arrow" />
+  <line x1="550" y1="170" x2="600" y2="170" class="arrow" />
+
+</svg> 
