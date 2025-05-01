@@ -152,11 +152,16 @@ Figure \ref{fig:system_diagram} presents the high-level architecture of our OTSD
 \subsection{Model Architecture}
 \label{sec:model_arch}
 
-The foundation of our approach is the \textbf{Llama 3.1 8B} model, a highly capable Large Language Model (LLM) developed by Meta \cite{llama3.1}. As a member of the Llama family, Llama 3.1 8B represents the cutting edge in open foundation models, pretrained on trillions of tokens from a diverse range of publicly available sources. Architecturally, it follows the standard \textbf{transformer-based, decoder-only} paradigm. This means the model processes input sequences and autoregressively generates output tokens one after another, conditioning each new token on the preceding sequence. This inherent generative capability makes it well-suited for tasks requiring text production, such as the joint target and stance generation needed for OTSD. The 8B parameter variant strikes a balance between strong performance and manageable computational requirements for finetuning and inference. For our experiments, we specifically utilized the \texttt{unsloth/Meta-Llama-3.1-8B} version available on Hugging Face, incorporating optimizations provided by the Unsloth library \cite{unsloth}.
+Our approach adapts a Large Language Model (LLM) for the specific demands of Open-Target Stance Detection (OTSD). While the base model possesses extensive pre-trained capabilities, achieving optimal performance on this nuanced task necessitates task-specific adaptation. Fully finetuning large models like Llama 3.1 8B demands substantial computational resources (GPU memory and time) often unavailable in typical research settings. To overcome this limitation, we employed \textbf{Parameter-Efficient Finetuning (PEFT)}, a family of techniques designed to adapt large pretrained models by modifying only a small fraction of their parameters.
 
-While the base Llama 3.1 8B model possesses extensive world knowledge and language understanding abilities from its pretraining, achieving optimal performance on a specific, nuanced task like OTSD necessitates task-specific adaptation. Fully finetuning all 8 billion parameters, however, demands substantial computational resources (GPU memory and time) often unavailable in typical research settings. To overcome this limitation, we employed \textbf{Parameter-Efficient Finetuning (PEFT)}, a family of techniques designed to adapt large pretrained models by modifying only a small fraction of their parameters.
+Specifically, we adopted \textbf{Low-Rank Adaptation (LoRA)} \cite{lora}. LoRA operates on the principle that the change in weights required to adapt a pretrained model to a new task often has a low intrinsic rank. Instead of learning the full change $\Delta W$ for a weight matrix $W$, LoRA learns its low-rank decomposition $\Delta W = BA$, where $B \in \mathbb{R}^{d \times r}$ and $A \in \mathbb{R}^{r \times k}$ are significantly smaller matrices (the "LoRA adapters") with rank $r \ll \min(d, k)$. During finetuning, the original pretrained weights $W$ are kept frozen, and only the parameters within the newly introduced matrices $A$ and $B$ are updated via gradient descent. The effective weight matrix during forward passes becomes $W + BA$, as illustrated in Figure \ref{fig:llama_lora_arch}. This approach dramatically reduces the number of trainable parameters; in our setup, only approximately 0.52\% of the total model parameters were trained, making finetuning feasible.
 
-Specifically, we adopted \textbf{Low-Rank Adaptation (LoRA)} \cite{lora}. LoRA operates on the principle that the change in weights required to adapt a pretrained model to a new task often has a low intrinsic rank. Instead of learning the full change $\Delta W$ for a weight matrix $W$, LoRA learns its low-rank decomposition $\Delta W = BA$, where $B \in \mathbb{R}^{d \times r}$ and $A \in \mathbb{R}^{r \times k}$ are significantly smaller matrices (the "LoRA adapters") with rank $r \ll \min(d, k)$. During finetuning, the original pretrained weights $W$ are kept frozen, and only the parameters within the newly introduced matrices $A$ and $B$ are updated via gradient descent. The effective weight matrix during forward passes becomes $W + BA$. This approach dramatically reduces the number of trainable parameters; in our setup, only approximately 0.52\% of the total model parameters were trained.
+\begin{figure}[htbp]
+\centering
+\includesvg[width=0.9\columnwidth]{figures/llama_arc}
+\caption{Detailed Llama 3.1 8B Architecture with LoRA adapters applied for OTSD finetuning. Base model weights (including embeddings and output layer) remain frozen, while LoRA modules are inserted into attention and feed-forward layers and are the only components trained.}
+\label{fig:llama_lora_arch}
+\end{figure}
 
 The specific configuration of LoRA in our experiments, guided by the implementation in the accompanying notebook and common practices for effective adaptation, included:
 \begin{itemize}
@@ -167,7 +172,9 @@ The specific configuration of LoRA in our experiments, guided by the implementat
     \item \textbf{Bias:} Set to \texttt{"none"}, indicating that bias terms within the LoRA adapters were not trained.
 \end{itemize}
 
-To facilitate this finetuning process on resource-constrained hardware (specifically, an NVIDIA T4 GPU with approx. 15GB VRAM as used in the notebook environment), we leveraged the \textbf{Unsloth library} \cite{unsloth}. Unsloth provides optimized implementations for faster training and reduced memory usage. Key techniques enabled by Unsloth in our setup were:
+The foundation for this adaptation is the \textbf{Llama 3.1 8B} model \cite{llama3.1}, a highly capable LLM developed by Meta. As a member of the Llama family, Llama 3.1 8B represents the cutting edge in open foundation models, pretrained on trillions of tokens from a diverse range of publicly available sources. Architecturally, it follows the standard \textbf{transformer-based, decoder-only} paradigm. This means the model processes input sequences and autoregressively generates output tokens one after another, conditioning each new token on the preceding sequence. This inherent generative capability makes it well-suited for tasks requiring text production, such as the joint target and stance generation needed for OTSD. The 8B parameter variant strikes a balance between strong performance and manageable computational requirements. For our experiments, we specifically utilized the \texttt{unsloth/Meta-Llama-3.1-8B}\footnote{Available at \url{https://huggingface.co/unsloth/Meta-Llama-3.1-8B}} version available on Hugging Face.
+
+To facilitate the finetuning process on resource-constrained hardware (specifically, an NVIDIA T4 GPU with approx. 15GB VRAM as used in the notebook environment), we leveraged the \textbf{Unsloth library} \cite{unsloth}. Unsloth provides optimized implementations for faster training and reduced memory usage. Key techniques enabled by Unsloth in our setup were:
 \begin{itemize}
     \item \textbf{4-bit Quantization:} The base Llama 3.1 8B model weights were loaded in 4-bit precision (\texttt{load\_in\_4bit = True}) using bitsandbytes \cite{bitsandbytes}. This technique significantly compresses the model size, reducing the GPU memory required to load the model.
     \item \textbf{Gradient Checkpointing:} We utilized Unsloth's optimized implementation of gradient checkpointing (\texttt{use\_gradient\_checkpointing = "unsloth"}). This technique avoids storing all intermediate activations during the forward pass, instead recomputing them during the backward pass, drastically reducing memory usage at the cost of increased computation time, enabling training with a sequence length of 2048 tokens.
@@ -196,15 +203,15 @@ Table \ref{tab:training_samples} presents representative examples from our train
 \centering
 \caption{Sample Training Data Points}
 \label{tab:training_samples}
-\begin{tabular}{|p{0.25\textwidth}|p{0.55\textwidth}|p{0.1\textwidth}|}
+\begin{tabular}{|p{0.55\textwidth}|p{0.25\textwidth}|p{0.1\textwidth}|}
 \hline
-\textbf{Target} & \textbf{Text} & \textbf{Stance} \\
+\textbf{Text} & \textbf{Target} & \textbf{Stance} \\
 \hline
-technology & Necessity is the mother of all invention. Never bet against human ingenuity, especially when survival is on the line. The technology we need to move beyond fossil fuels exist today - wind, solar, efficiency improvements like LED lighting, and especially nuclear power. & AGAINST \\
+Necessity is the mother of all invention. Never bet against human ingenuity, especially when survival is on the line. The technology we need to move beyond fossil fuels exist today - wind, solar, efficiency improvements like LED lighting, and especially nuclear power. & technology & AGAINST \\
 \hline
-metoo movement & Other ways to heal: when you can't tell your \#MeToo story. The technology we need to move beyond fossil fuels exist today. & AGAINST \\
+Other ways to heal: when you can't tell your \#MeToo story. The technology we need to move beyond fossil fuels exist today. & metoo movement & AGAINST \\
 \hline
-merger of disney and fox & COMCAST willing to outbid Disney for Fox... could the deal between Disney and Fox be over? & AGAINST \\
+COMCAST willing to outbid Disney for Fox... could the deal between Disney and Fox be over? & merger of disney and fox & AGAINST \\
 \hline
 \end{tabular}
 \end{table*}
@@ -216,21 +223,21 @@ To rigorously evaluate the performance and generalization capabilities of both t
 \centering
 \caption{Sample Test Data Points from Different Evaluation Datasets}
 \label{tab:test_samples}
-\begin{tabular}{|p{0.2\textwidth}|p{0.6\textwidth}|p{0.1\textwidth}|}
+\begin{tabular}{|p{0.6\textwidth}|p{0.2\textwidth}|p{0.1\textwidth}|}
 \hline
-\textbf{Target} & \textbf{Text} & \textbf{Stance} \\
+\textbf{Text} & \textbf{Target} & \textbf{Stance} \\
 \hline
 \multicolumn{3}{|c|}{COVID-19 Dataset} \\
 \hline
-face masks & Maybe if people want to walk around without masks on they can organize into fenced-off private mask nudist colonies, keep their idiotic sense of liberty, and the rest of us can live in a society. \#WearAMask & FAVOR \\
+Maybe if people want to walk around without masks on they can organize into fenced-off private mask nudist colonies, keep their idiotic sense of liberty, and the rest of us can live in a society. \#WearAMask & face masks & FAVOR \\
 \hline
 \multicolumn{3}{|c|}{EZStance Mixed Dataset} \\
 \hline
-Trump-appointed judge & WhiteHouse has appealed a Trump-appointed judge's obstruction of CDCgov's transportation mask mandate, but without an emergency stay, millions of lives remain in danger as we work our way through the courts. & AGAINST \\
+WhiteHouse has appealed a Trump-appointed judge's obstruction of CDCgov's transportation mask mandate, but without an emergency stay, millions of lives remain in danger as we work our way through the courts. & Trump-appointed judge & AGAINST \\
 \hline
 \multicolumn{3}{|c|}{EZStance Noun Phrase Dataset} \\
 \hline
-Cummings & Fgs stop calling Cummings a mad genius. He's just mad. The higher echelons of the civil service are as hidebound by private education as the Tory party, law and the BBC. & AGAINST \\
+Fgs stop calling Cummings a mad genius. He's just mad. The higher echelons of the civil service are as hidebound by private education as the Tory party, law and the BBC. & Cummings & AGAINST \\
 \hline
 \end{tabular}
 \end{table*}
@@ -245,25 +252,20 @@ These datasets served as the held-out test sets for evaluating both the base and
 \subsection{Finetuning Details}
 \label{sec:finetuning}
 
-The finetuning process was carried out using the Supervised Finetuning Trainer (\texttt{SFTTrainer}) from the Hugging Face TRL library, integrated with the Unsloth optimizations. The training objective was standard causal language modeling loss, where the model learns to predict the next token in the sequence, specifically trained to generate the \texttt{Target: ..., Stance: ...} response based on the provided instruction and input text.
+The finetuning process was carried out using the Supervised Finetuning Trainer (\texttt{SFTTrainer})\footnote{Available at \url{https://huggingface.co/docs/trl/index}} from the Hugging Face TRL library, integrated with the Unsloth optimizations. The training objective was standard causal language modeling loss, where the model learns to predict the next token in the sequence, specifically trained to generate the \texttt{Target: ..., Stance: ...} response based on the provided instruction and input text.
 
-Key hyperparameters for the training process were set as follows (based on the notebook implementation):
-\begin{itemize}
-    \item Maximum Sequence Length: 2048 tokens.
-    \item Per Device Train Batch Size: 2.
-    \item Gradient Accumulation Steps: 4 (resulting in an effective batch size of 8).
-    \item Learning Rate: $2 \times 10^{-4}$.
-    \item Optimizer: AdamW 8-bit \cite{adamw8bit}.
-    \item Learning Rate Scheduler: Linear decay.
-    \item Warmup Steps: 5.
-    \item Maximum Training Steps: 60. 
-    \item Floating Point Precision: BF16 enabled if supported, otherwise FP16.
-    \item Seed: 3407 for reproducibility.
-\end{itemize}
-Training was performed on a single NVIDIA T4 GPU.
+\subsection{Training Configuration}
+The model was trained with a maximum sequence length of 2048 tokens. We used a per-device training batch size of 2 and gradient accumulation steps of 4, resulting in an effective batch size of 8. The learning rate was set to $2 \times 10^{-4}$ with a linear decay scheduler and 5 warmup steps. Optimization was performed using the AdamW 8-bit optimizer \cite{adamw8bit}. Training was conducted for a maximum of 60 steps. Floating point precision was set to BF16 if supported, otherwise FP16 was used. A seed of 3407 was used for reproducibility.
+
+\begin{figure}[htbp]
+\centering
+\includesvg[width=\columnwidth]{figures/training_loss_plot.svg}
+\caption{Training loss curve for the Llama 3.1 8B model finetuned for OTSD over 60 steps.}
+\label{fig:training_loss}
+\end{figure}
 
 \subsection{BERTweet Semantic Evaluation}
-In addition to DeepSeek and Gemini evaluations, we employed BERTweet \cite{bertweet} for semantic similarity assessment of predicted targets against ground truth. BERTweet provides a specialized evaluation metric for measuring semantic similarity in the context of social media text, which is particularly relevant for our stance detection task. Separately, we calculated Macro F1 scores to evaluate the stance classification performance across the FAVOR, AGAINST, and NONE categories.
+In addition to DeepSeek and Gemini evaluations, we employed BERTweet \cite{bertweet} for semantic similarity assessment of predicted targets against ground truth. BERTweet provides a specialized evaluation metric for measuring semantic similarity in the context of social media text, which is particularly relevant for our stance detection task. It is important to note that while BERTweet provides valuable sentence-level semantic insights, its performance might be less optimal for fine-grained word-level semantic analysis, as it was primarily developed for evaluating sentence similarity. Separately, we calculated Macro F1 scores to evaluate the stance classification performance across the FAVOR, AGAINST, and NONE categories.
 
 The BERTweet evaluation results and Macro F1 scores (Table \ref{tab:bertweet_results}) reveal interesting patterns:
 
@@ -278,11 +280,13 @@ These results consistently demonstrate that finetuning improves performance acro
 \section{Results and Discussion}
 \label{sec:results}
 
-We evaluated our models on three distinct datasets to assess their generalization capabilities and performance across different domains. The results are presented for both the base Llama model ($M_{\text{base}}$) and the finetuned model ($M_{\text{finetuned}}$), with semantic evaluation performed by both DeepSeek-671B and Gemini. Table \ref{tab:combined_results} presents the comprehensive evaluation results across all datasets.
+We evaluated our models on three distinct datasets to assess their generalization capabilities and performance across different domains. The results are presented for both the base Llama model ($M_{\text{base}}$) and the finetuned model ($M_{\text{finetuned}}$), with semantic evaluation performed by both DeepSeek-671B and Gemini. 
+The semantic evaluation process involved providing the original input text, the ground truth target, the ground truth stance, the model-predicted target, and the model-predicted stance to both DeepSeek-671B and Gemini. These state-of-the-art models then assessed the semantic correctness and similarity of the predicted target and stance compared to the ground truth, assigning a score which is represented as a percentage accuracy in the table. The "Average" columns represent the arithmetic mean of the scores obtained from DeepSeek and Gemini for stance and target accuracy, respectively, providing a balanced measure of performance.
+Table \ref{tab:combined_results} presents the comprehensive evaluation results across all datasets.
 
 \begin{table*}[!htbp]
 \centering
-\caption{Comprehensive Evaluation Results Across All Datasets (\%)}
+\caption{Comprehensive Semantic Evaluation Results (\%): Accuracy assessed by DeepSeek and Gemini comparing predicted vs. ground truth stance and target}
 \label{tab:combined_results}
 \begin{tabular}{@{}llcccccc@{}}
 \toprule
@@ -307,7 +311,7 @@ We evaluated our models on three distinct datasets to assess their generalizatio
 
 \begin{table*}[!htbp]
 \centering
-\caption{BERTweet Target Semantic Similarity and F1 Score Evaluation}
+\caption{BERTweet Evaluation: Comparing Target Semantic Similarity (BERTweet Score) and Stance Classification Performance (Macro F1 Score) for Base and Finetuned Models}
 \label{tab:bertweet_results}
 \begin{tabular}{@{}llcc@{}}
 \toprule
@@ -333,25 +337,29 @@ We evaluated our models on three distinct datasets to assess their generalizatio
 \centering
 \caption{Performance Comparison with Previous Work on EZStance Datasets}
 \label{tab:comparison}
-\begin{tabular}{|p{0.15\textwidth}|p{0.15\textwidth}|p{0.2\textwidth}|p{0.2\textwidth}|p{0.23\textwidth}|}
+\begin{tabular}{|p{0.20\textwidth}|p{0.15\textwidth}|p{0.2\textwidth}|p{0.2\textwidth}|p{0.23\textwidth}|}
 \hline
-\textbf{Dataset} & \textbf{Model} & \textbf{Target Generation} & \textbf{Stance Detection} & \textbf{Key Findings} \\
+\textbf{Model} & \textbf{Dataset} & \textbf{Target Generation} & \textbf{Stance Detection} & \textbf{Key Findings} \\
 \hline
-\multirow{4}{*}{EZStance Mixed} & Finetuned Llama 3.1 8B & BERTweet: 0.7779\newline Target Acc: 33.79\% & Macro F1: 0.3964\newline Stance Acc: 49.24\% & Outperforms previous best (Mistral) \\
+\multirow{2}{*}{Finetuned Llama 3.1 8B} 
+& EZStance Mixed & BERTweet: 0.7779\newline Target Acc: 33.79\% & Macro F1: 0.3964\newline Stance Acc: 49.24\% & Outperforms previous best (Mistral) \\
 \cline{2-5}
-& Base Llama 3.1 8B & BERTweet: 0.7392\newline Target Acc: 26.49\% & Macro F1: 0.3624\newline Stance Acc: 44.00\% & Comparable to Akash et al.'s Llama-3 \\
-\cline{2-5}
-& GPT-4o (Akash et al.) & SS: 0.87\newline BTSD: 50.69 & SC: 46.22\% & Lower stance accuracy than our finetuned model \\
-\cline{2-5}
-& Mistral (Akash et al.) & SS: 0.86\newline BTSD: 50.17 & SC: 48.72\% & Close but lower performance \\
+& EZStance NP & BERTweet: 0.7871\newline Target Acc: 34.68\% & Macro F1: 0.3907\newline Stance Acc: 47.12\% & Higher target accuracy but slightly lower stance accuracy \\
 \hline
-\multirow{4}{*}{EZStance NP} & Finetuned Llama 3.1 8B & BERTweet: 0.7871\newline Target Acc: 34.68\% & Macro F1: 0.3907\newline Stance Acc: 47.12\% & Higher target accuracy but slightly lower stance accuracy \\
+\multirow{2}{*}{Base Llama 3.1 8B} 
+& EZStance Mixed & BERTweet: 0.7392\newline Target Acc: 26.49\% & Macro F1: 0.3624\newline Stance Acc: 44.00\% & Comparable to Akash et al.'s Llama-3 \\
 \cline{2-5}
-& Base Llama 3.1 8B & BERTweet: 0.7390\newline Target Acc: 26.40\% & Macro F1: 0.3533\newline Stance Acc: 47.83\% & Baseline for comparison \\
+& EZStance NP & BERTweet: 0.7390\newline Target Acc: 26.40\% & Macro F1: 0.3533\newline Stance Acc: 47.83\% & Baseline for comparison \\
+\hline
+\multirow{2}{*}{GPT-4o} 
+& EZStance Mixed & SS: 0.87\newline BTSD: 50.69 & SC: 46.22\% & Lower stance accuracy than our finetuned model \\
 \cline{2-5}
-& GPT-4o (Akash et al.) & SS: 0.87\newline BTSD: 50.69 & SC: 46.22\% & Similar stance performance \\
+& EZStance NP & SS: 0.87\newline BTSD: 50.69 & SC: 46.22\% & Similar stance performance \\
+\hline
+\multirow{2}{*}{Mistral} 
+& EZStance Mixed & SS: 0.86\newline BTSD: 50.17 & SC: 48.72\% & Close but lower performance \\
 \cline{2-5}
-& Mistral (Akash et al.) & SS: 0.86\newline BTSD: 50.17 & SC: 48.72\% & Slightly better stance detection \\
+& EZStance NP & SS: 0.86\newline BTSD: 50.17 & SC: 48.72\% & Slightly better stance detection \\
 \hline
 \end{tabular}
 \end{table*}
