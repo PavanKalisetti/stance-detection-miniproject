@@ -144,7 +144,7 @@ Figure \ref{fig:system_diagram} presents the high-level architecture of our OTSD
 
 \begin{figure*}[t]
 \centering
-\includesvg[width=0.95\textwidth]{figures/research_architecture}
+\includegraphics[width=0.95\textwidth]{figures/research_architecture.pdf}
 \caption{Detailed Research Architecture showing the complete pipeline from training data through model finetuning to evaluation. The system combines VAST and TSE datasets for training, processes through a finetuned Llama 3.1 8B model, and evaluates outputs using multiple methods including Gemini, DeepSeek, and BERTweet for semantic similarity assessment.}
 \label{fig:research_arch}
 \end{figure*}
@@ -158,7 +158,7 @@ Specifically, we adopted \textbf{Low-Rank Adaptation (LoRA)} \cite{lora}. LoRA o
 
 \begin{figure}[htbp]
 \centering
-\includesvg[width=0.9\columnwidth]{figures/llama_arc}
+\includegraphics[width=1\columnwidth]{figures/llama_arc.pdf}
 \caption{Detailed Llama 3.1 8B Architecture with LoRA adapters applied for OTSD finetuning. Base model weights (including embeddings and output layer) remain frozen, while LoRA modules are inserted into attention and feed-forward layers and are the only components trained.}
 \label{fig:llama_lora_arch}
 \end{figure}
@@ -276,6 +276,12 @@ The percentage accuracy for each metric is computed as:
 \]
 where $\text{score}_i$ is the semantic evaluation score (either binary or continuous) for the $i$-th test example, and $N$ is the total number of test examples.
 
+For each example $i$:
+\[
+\text{score}_i = \text{LLM}_\text{sem}(y_i, \hat{y}_i, t_i, \hat{t}_i)
+\]
+where $\text{LLM}_\text{sem}$ denotes the percentage score assigned by the LLM evaluator based on the semantic similarity between the ground truth stance $y_i$, predicted stance $\hat{y}_i$, ground truth target $t_i$, and predicted target $\hat{t}_i$.
+
 \textbf{Target Semantic Similarity (BERTweet Score - BTSD):} We employed BERTweet \cite{bertweet} specifically for semantic similarity assessment of predicted targets against the ground truth target. BERTweet provides a specialized evaluation metric suited for measuring semantic similarity in social media text. It is important to note that while BERTweet provides valuable sentence-level semantic insights, its performance might be less optimal for fine-grained word-level semantic analysis, as it was primarily developed for evaluating sentence similarity. The BERTweet Similarity score (referred to as BTSD in Table \ref{tab:comparison}) is reported in Table \ref{tab:bertweet_results}.
 
 The BTSD score is computed as:
@@ -283,6 +289,12 @@ The BTSD score is computed as:
 \text{BTSD} = \frac{1}{N} \sum_{i=1}^{N} \text{BERTweetSim}_i \times 100
 \]
 where $\text{BERTweetSim}_i$ is the BERTweet similarity score for the $i$-th test example.
+
+For each example $i$:
+\[
+\text{BERTweetSim}_i = \text{BERTweetSim}(t_i, \hat{t}_i)
+\]
+where $\text{BERTweetSim}$ denotes the similarity score (between 0 and 100) computed by BERTweet between the ground truth target $t_i$ and the predicted target $\hat{t}_i$.
 
 \textbf{Stance Classification Accuracy (SC \%):} For direct comparison with previous work as presented in Table \ref{tab:comparison}, we use Stance Classification accuracy (SC \%). This metric reflects the percentage of correctly predicted stance labels (FAVOR, AGAINST, NONE).
 
@@ -411,6 +423,52 @@ These results demonstrate that our finetuning approach is particularly effective
 
 To better understand the types of errors made by the finetuned model, we present the confusion matrix in Figure~\ref{fig:confusion_matrix}. This matrix summarizes the model's stance predictions (FAVOR, AGAINST, NONE) against the ground truth labels across the test set. The diagonal elements represent correct predictions, while off-diagonal elements indicate misclassifications. Notably, the model achieves high accuracy for the FAVOR and AGAINST classes, but some confusion remains, particularly between NONE and the other stances. This suggests that distinguishing neutral or ambiguous cases remains a challenge for the model, possibly due to the inherent subjectivity and context-dependence of stance in open-domain settings.
 
+% --- Error Analysis Table: Segregated by Performance ---
+
+\begin{table*}[!htbp]
+    \centering
+    \caption{Sample Error Analysis: Segregated Examples of Model Successes and Failures}
+    \label{tab:error_analysis_examples}
+    \begin{minipage}{0.98\textwidth}
+    \centering
+    \textbf{(a) Performed Well: Representative Examples}
+    \vspace{0.5em}
+    \begin{tabular}{|p{0.40\textwidth}|p{0.13\textwidth}|p{0.13\textwidth}|p{0.13\textwidth}|p{0.13\textwidth}|}
+    \hline
+    \textbf{Original Text} & \textbf{Ground Truth Target} & \textbf{Ground Truth Stance} & \textbf{Predicted Target} & \textbf{Predicted Stance} \\
+    \hline
+    We wore our masks to ensure the safety of staff and customers & face masks & FAVOR & face masks & FAVOR \\
+    \hline
+    Cummings is just mad. The higher echelons of the civil service are as hidebound by private education as the Tory party, law and the BBC. & Cummings & AGAINST & Cummings & AGAINST \\
+    \hline
+    Central Bank of Kenya Pension Towers, a 27-storey skyscraper in Nairobi is receiving special attention from China due to its world class architectural design. It was by Kenyan Architects. It has solar panels, which enables it to supply its own clean energy during the day. & Central Bank of Kenya Pension Towers & FAVOR & Central Bank of Kenya Pension Towers & FAVOR \\
+    \hline
+    U.S State Department officials met with the Phoenix Mercury today to discuss steps to safely get Brittney Griner out of Russia. Democratic Congressman Greg Stanton was in attendance and said he's leading a bipartisan solution in Congress calling for Griner's immediate release. & Brittney Griner & FAVOR & Brittney Griner & FAVOR \\
+    \hline
+    "Fgs stop calling Cummings a mad genius. He's just mad." & Cummings & AGAINST & Cummings & AGAINST \\
+    \hline
+    \end{tabular}
+    \vspace{1em}
+    \textbf{(b) Did Not Perform Well: Representative Examples}
+    \vspace{0.5em}
+    \begin{tabular}{|p{0.40\textwidth}|p{0.13\textwidth}|p{0.13\textwidth}|p{0.13\textwidth}|p{0.13\textwidth}|}
+    \hline
+    \textbf{Original Text} & \textbf{Ground Truth Target} & \textbf{Ground Truth Stance} & \textbf{Predicted Target} & \textbf{Predicted Stance} \\
+    \hline
+    Thank goodness Trump wasn't there to greet the astronauts after splashdown. I'm sure he would have shown up with no mask! & face masks & FAVOR & trump & AGAINST \\
+    \hline
+    "if you hate the Fire Island movie then, ok, why do you hate Asian people and gay people at the same time? unpack that." & Asian people and gay people & FAVOR & Fire Island movie & AGAINST \\
+    \hline
+    So yeah. & face masks & FAVOR & climate change is a problem & FAVOR \\
+    \hline
+    For anyone claiming that fear is the killer and not covid: fear is an incentive for self preservation. Fear for others creates responsibility. It doesn't have to be negative. It also helps you be a mask wearing informed human. So yes I am afraid. #COVIDIOTS & face masks & FAVOR & lockdown & AGAINST \\
+    \hline
+    "i was iffy towards disney's choice to rename boba fett's ship because it reeks of performative activism but seeing how it's driving dudebros insane i am now 10 10 here for it..." & Disney's & AGAINST & Slave1 & FAVOR \\
+    \hline
+    \end{tabular}
+    \end{minipage}
+\end{table*}
+
 \begin{figure}[htbp]
     \centering
     \includesvg[width=0.9\columnwidth]{figures/confusion_matrix.svg}
@@ -443,6 +501,8 @@ These errors can be attributed to several factors:
 \end{itemize}
 
 Overall, while the model demonstrates strong performance on explicit and direct examples, it remains challenged by nuanced, ambiguous, or context-dependent cases. These findings suggest that further improvements could be achieved by augmenting the training data with more diverse examples and incorporating techniques for better handling of implicit language and complex target structures.
+
+
 
 \section{Conclusion}
 \label{sec:conclusion}
