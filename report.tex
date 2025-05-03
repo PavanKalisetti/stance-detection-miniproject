@@ -72,7 +72,7 @@ Open-Target Stance Detection (OTSD) requires identifying a target within a text 
 
 Stance Detection (SD) is a fundamental task in natural language processing, focusing on determining the viewpoint (e.g., favor, against, neutral) expressed in a text towards a given entity or topic, known as the target \cite{akash2024}. Many real-world applications, such as social media analysis, opinion polling, and argument mining, benefit from accurate stance detection. However, a significant limitation of many existing SD approaches is the requirement that the target of the stance be provided beforehand. This assumption does not hold in many practical scenarios where the target itself needs to be identified from the text.
 
-This leads to the more complex and realistic task of Open-Target Stance Detection (OTSD), where the model must first identify the relevant target(s) within the text and then determine the stance towards that identified target \cite{akash2024}. The OTSD task presents challenges in both target generation (TG) and subsequent stance classification, especially when targets are not explicitly mentioned. While Zero-Shot Stance Detection (ZSSD) methods have emerged to handle targets unseen during training \cite{vast}, they typically still require the target to be provided during inference. Even recent approaches like Target-Stance Extraction (TSE) \cite{tse}, which generate targets, often rely on mapping these generated targets to a predefined list, limiting their truly "open" nature.
+This leads to the more complex and realistic task of Open-Target Stance Detection (OTSD), where the model must first identify the relevant target(s) within the text and then determine the stance towards that identified target \cite{akash2024}. The OTSD task presents challenges in both target generation (TG) and subsequent stance classification, especially when targets are not explicitly mentioned. While Zero-Shot Stance Detection (ZSSD) methods have emerged to handle targets unseen during training \cite{vast}, they typically still require the target to be provided during inference. Even recent approaches like Target-Stance Extraction (TSE) , which generate targets, often rely on mapping these generated targets to a predefined list, limiting their truly "open" nature.
 
 Recent advancements in Large Language Models (LLMs) have shown promise in various zero-shot and few-shot learning scenarios. Their ability to understand context and generate text makes them potential candidates for tackling the complexities of OTSD. Initial work by Akash et al. \cite{akash2024} explored the zero-shot capabilities of various LLMs, including Llama, for OTSD, highlighting their potential but also the challenges, particularly with non-explicit targets.
 
@@ -83,7 +83,7 @@ This paper investigates the effectiveness of \textit{finetuning} an LLM for the 
 
 Research in Stance Detection (SD) has evolved significantly. Early work focused on supervised classification tasks where both the text and the target were provided, often using feature engineering and traditional machine learning models, later transitioning to deep learning approaches like LSTMs and CNNs \cite{vast}.
 
-Recognizing the impracticality of gathering labeled data for every conceivable target, Zero-Shot Stance Detection (ZSSD) emerged. ZSSD aims to predict stances towards targets unseen during training. Various techniques have been explored, including contrastive learning, generative approaches, prompt-based learning with LLMs, and methods incorporating external knowledge \cite{vast}. A prominent line of work, TSE \cite{tse,tts}, generates targets but subsequently maps them to a known target list, facilitating evaluation but deviating from a truly open-target scenario.
+Recognizing the impracticality of gathering labeled data for every conceivable target, Zero-Shot Stance Detection (ZSSD) emerged. ZSSD aims to predict stances towards targets unseen during training. Various techniques have been explored, including contrastive learning, generative approaches, prompt-based learning with LLMs, and methods incorporating external knowledge \cite{vast}. A prominent line of work, TSE , generates targets but subsequently maps them to a known target list, facilitating evaluation but deviating from a truly open-target scenario.
 
 The specific challenge of Open-Target Stance Detection (OTSD), where the target is neither provided nor drawn from a predefined inference-time list, was formally introduced and benchmarked by Akash et al. \cite{akash2024}. Their work evaluated the zero-shot performance of several state-of-the-art LLMs (GPT-3.5, GPT-4o, Mistral) on OTSD, establishing baseline capabilities and highlighting the difficulty posed by implicitly mentioned targets. They demonstrated that while LLMs outperform prior methods in target generation quality, significant challenges remain.
 
@@ -176,7 +176,7 @@ The foundation for this adaptation is the \textbf{Llama 3.1 8B} model \cite{llam
 
 To facilitate the finetuning process on resource-constrained hardware (specifically, an NVIDIA T4 GPU with approx. 15GB VRAM as used in the notebook environment), we leveraged the \textbf{Unsloth library} \cite{unsloth}. Unsloth provides optimized implementations for faster training and reduced memory usage. Key techniques enabled by Unsloth in our setup were:
 \begin{itemize}
-    \item \textbf{4-bit Quantization:} The base Llama 3.1 8B model weights were loaded in 4-bit precision (\texttt{load\_in\_4bit = True}) using bitsandbytes \cite{bitsandbytes}. This technique significantly compresses the model size, reducing the GPU memory required to load the model.
+    \item \textbf{4-bit Quantization:} The base Llama 3.1 8B model weights were loaded in 4-bit precision (\texttt{load\_in\_4bit = True}) using bitsandbytes . This technique significantly compresses the model size, reducing the GPU memory required to load the model.
     \item \textbf{Gradient Checkpointing:} We utilized Unsloth's optimized implementation of gradient checkpointing (\texttt{use\_gradient\_checkpointing = "unsloth"}). This technique avoids storing all intermediate activations during the forward pass, instead recomputing them during the backward pass, drastically reducing memory usage at the cost of increased computation time, enabling training with a sequence length of 2048 tokens.
 \end{itemize}
 
@@ -255,7 +255,7 @@ These datasets served as the held-out test sets for evaluating both the base and
 The finetuning process was carried out using the Supervised Finetuning Trainer (\texttt{SFTTrainer})\footnote{Available at \url{https://huggingface.co/docs/trl/index}} from the Hugging Face TRL library, integrated with the Unsloth optimizations. The training objective was standard causal language modeling loss, where the model learns to predict the next token in the sequence, specifically trained to generate the \texttt{Target: ..., Stance: ...} response based on the provided instruction and input text.
 
 \subsection{Training Configuration}
-The model was trained with a maximum sequence length of 2048 tokens. We used a per-device training batch size of 2 and gradient accumulation steps of 4, resulting in an effective batch size of 8. The learning rate was set to $2 \times 10^{-4}$ with a linear decay scheduler and 5 warmup steps. Optimization was performed using the AdamW 8-bit optimizer \cite{adamw8bit}. Training was conducted for a maximum of 60 steps. Floating point precision was set to BF16 if supported, otherwise FP16 was used. A seed of 3407 was used for reproducibility.
+The model was trained with a maximum sequence length of 2048 tokens. We used a per-device training batch size of 2 and gradient accumulation steps of 4, resulting in an effective batch size of 8. The learning rate was set to $2 \times 10^{-4}$ with a linear decay scheduler and 5 warmup steps. Optimization was performed using the AdamW 8-bit optimizer. Training was conducted for a maximum of 60 steps. Floating point precision was set to BF16 if supported, otherwise FP16 was used. A seed of 3407 was used for reproducibility.
 
 \begin{figure}[htbp]
 \centering
@@ -264,29 +264,43 @@ The model was trained with a maximum sequence length of 2048 tokens. We used a p
 \label{fig:training_loss}
 \end{figure}
 
-\subsection{BERTweet Semantic Evaluation}
-In addition to DeepSeek and Gemini evaluations, we employed BERTweet \cite{bertweet} for semantic similarity assessment of predicted targets against ground truth. BERTweet provides a specialized evaluation metric for measuring semantic similarity in the context of social media text, which is particularly relevant for our stance detection task. It is important to note that while BERTweet provides valuable sentence-level semantic insights, its performance might be less optimal for fine-grained word-level semantic analysis, as it was primarily developed for evaluating sentence similarity. Separately, we calculated Macro F1 scores to evaluate the stance classification performance across the FAVOR, AGAINST, and NONE categories.
+\subsection{Evaluation Metrics}
+\label{sec:eval_metrics}
+To evaluate model performance, we employed several metrics focusing on both target generation and stance classification:
 
-The BERTweet evaluation results and Macro F1 scores (Table \ref{tab:bertweet_results}) reveal interesting patterns:
+\textbf{Semantic Evaluation (DeepSeek \& Gemini):} The primary evaluation involved semantic assessment by state-of-the-art LLMs, DeepSeek-671B and Gemini. This process involved providing the original input text, the ground truth target, the ground truth stance, the model-predicted target, and the model-predicted stance to both evaluators. These models then assessed the semantic correctness and similarity of the predicted target and stance compared to the ground truth, assigning a score represented as a percentage accuracy (shown in Table \ref{tab:combined_results}). The "Average" columns in Table \ref{tab:combined_results} represent the arithmetic mean of the scores obtained from DeepSeek and Gemini for stance and target accuracy, respectively, providing a balanced measure of performance.
 
-\begin{itemize}
-    \item For the COVID-19 dataset, the finetuned model achieved higher semantic similarity (0.7832) compared to the base model (0.7363), and a higher Macro F1 score for stance classification (0.2947 vs. 0.2660).
-    \item On the EZStance Mixed dataset, the finetuned model demonstrated improved performance with higher semantic similarity (0.7779) compared to the base model (0.7392), and a better Macro F1 score (0.3964 vs. 0.3624).
-    \item Similarly, for the EZStance Noun Phrase dataset, the finetuned model showed superior results with higher semantic similarity (0.7871) compared to the base model (0.7390), and a better Macro F1 score (0.3907 vs. 0.3533).
-\end{itemize}
+The percentage accuracy for each metric is computed as:
+\[
+\text{Accuracy} = \frac{1}{N} \sum_{i=1}^{N} \text{score}_i \times 100
+\]
+where $\text{score}_i$ is the semantic evaluation score (either binary or continuous) for the $i$-th test example, and $N$ is the total number of test examples.
 
-These results consistently demonstrate that finetuning improves performance across all datasets, with particularly strong improvements in both semantic similarity and stance classification for specialized domains like COVID-19, as well as notable gains in general-domain datasets. This reinforces our findings about the effectiveness of the finetuning approach for both target identification and stance classification tasks.
+\textbf{Target Semantic Similarity (BERTweet Score - BTSD):} We employed BERTweet \cite{bertweet} specifically for semantic similarity assessment of predicted targets against the ground truth target. BERTweet provides a specialized evaluation metric suited for measuring semantic similarity in social media text. It is important to note that while BERTweet provides valuable sentence-level semantic insights, its performance might be less optimal for fine-grained word-level semantic analysis, as it was primarily developed for evaluating sentence similarity. The BERTweet Similarity score (referred to as BTSD in Table \ref{tab:comparison}) is reported in Table \ref{tab:bertweet_results}.
+
+The BTSD score is computed as:
+\[
+\text{BTSD} = \frac{1}{N} \sum_{i=1}^{N} \text{BERTweetSim}_i \times 100
+\]
+where $\text{BERTweetSim}_i$ is the BERTweet similarity score for the $i$-th test example.
+
+\textbf{Stance Classification Accuracy (SC \%):} For direct comparison with previous work as presented in Table \ref{tab:comparison}, we use Stance Classification accuracy (SC \%). This metric reflects the percentage of correctly predicted stance labels (FAVOR, AGAINST, NONE).
+
+The SC percentage is computed as:
+\[
+\text{SC} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{I}(\hat{y}_i = y_i) \times 100
+\]
+where $\mathbb{I}(\hat{y}_i = y_i)$ is 1 if the predicted stance $\hat{y}_i$ matches the ground truth $y_i$, and 0 otherwise.
 
 \section{Results and Discussion}
 \label{sec:results}
 
-We evaluated our models on three distinct datasets to assess their generalization capabilities and performance across different domains. The results are presented for both the base Llama model ($M_{\text{base}}$) and the finetuned model ($M_{\text{finetuned}}$), with semantic evaluation performed by both DeepSeek-671B and Gemini. 
-The semantic evaluation process involved providing the original input text, the ground truth target, the ground truth stance, the model-predicted target, and the model-predicted stance to both DeepSeek-671B and Gemini. These state-of-the-art models then assessed the semantic correctness and similarity of the predicted target and stance compared to the ground truth, assigning a score which is represented as a percentage accuracy in the table. The "Average" columns represent the arithmetic mean of the scores obtained from DeepSeek and Gemini for stance and target accuracy, respectively, providing a balanced measure of performance.
-Table \ref{tab:combined_results} presents the comprehensive evaluation results across all datasets.
+We evaluated our models on three distinct datasets to assess their generalization capabilities and performance across different domains. The results are presented for both the base Llama model ($M_{\text{base}}$) and the finetuned model ($M_{\text{finetuned}}$), using the evaluation metrics described in Section \ref{sec:eval_metrics}. 
+Table \ref{tab:combined_results} presents the comprehensive semantic evaluation results across all datasets.
 
 \begin{table*}[!htbp]
 \centering
-\caption{Comprehensive Semantic Evaluation Results (\%): Accuracy assessed by DeepSeek and Gemini comparing predicted vs. ground truth stance and target}
+\caption{Comprehensive Semantic Evaluation Results (\%): Accuracy is based on the semantic correctness and similarity of the predicted target and stance compared to the ground truth, assigning a score represented as a percentage.}
 \label{tab:combined_results}
 \begin{tabular}{@{}llcccccc@{}}
 \toprule
@@ -335,31 +349,31 @@ Table \ref{tab:combined_results} presents the comprehensive evaluation results a
 \subsection{Comparison with Previous Work}
 \begin{table*}[!htbp]
 \centering
-\caption{Performance Comparison with Previous Work on EZStance Datasets}
+\caption{Comparison of Finetuned Llama 3.1 8B with Base Model and Previous Work (Akash et al.) on EZStance Datasets. Metrics shown are Target Generation (BTSD Score) and Stance Detection Accuracy (SC \%).}
 \label{tab:comparison}
-\begin{tabular}{|p{0.20\textwidth}|p{0.15\textwidth}|p{0.2\textwidth}|p{0.2\textwidth}|p{0.23\textwidth}|}
+\begin{tabular}{|p{0.24\textwidth}|p{0.15\textwidth}|p{0.2\textwidth}|p{0.2\textwidth}|}
 \hline
-\textbf{Model} & \textbf{Dataset} & \textbf{Target Generation} & \textbf{Stance Detection} & \textbf{Key Findings} \\
+\textbf{Model} & \textbf{Dataset} & \textbf{Target Generation (BTSD)} & \textbf{Stance Detection (SC)} \\
 \hline
 \multirow{2}{*}{Finetuned Llama 3.1 8B} 
-& EZStance Mixed & BERTweet: 0.7779\newline Target Acc: 33.79\% & Macro F1: 0.3964\newline Stance Acc: 49.24\% & Outperforms previous best (Mistral) \\
-\cline{2-5}
-& EZStance NP & BERTweet: 0.7871\newline Target Acc: 34.68\% & Macro F1: 0.3907\newline Stance Acc: 47.12\% & Higher target accuracy but slightly lower stance accuracy \\
+& EZStance Mixed & 77.79 & 49.24 \\
+\cline{2-4}
+& EZStance NP & 78.71 & 47.12 \\
 \hline
 \multirow{2}{*}{Base Llama 3.1 8B} 
-& EZStance Mixed & BERTweet: 0.7392\newline Target Acc: 26.49\% & Macro F1: 0.3624\newline Stance Acc: 44.00\% & Comparable to Akash et al.'s Llama-3 \\
-\cline{2-5}
-& EZStance NP & BERTweet: 0.7390\newline Target Acc: 26.40\% & Macro F1: 0.3533\newline Stance Acc: 47.83\% & Baseline for comparison \\
+& EZStance Mixed & 73.92 & 44.00 \\
+\cline{2-4}
+& EZStance NP & 73.90 & 47.83 \\
 \hline
-\multirow{2}{*}{GPT-4o} 
-& EZStance Mixed & SS: 0.87\newline BTSD: 50.69 & SC: 46.22\% & Lower stance accuracy than our finetuned model \\
-\cline{2-5}
-& EZStance NP & SS: 0.87\newline BTSD: 50.69 & SC: 46.22\% & Similar stance performance \\
+\multirow{2}{*}{GPT-4o~\cite{akash2024}} 
+& EZStance Mixed & 50.69 & 46.22 \\
+\cline{2-4}
+& EZStance NP & 50.69 & 46.22 \\
 \hline
-\multirow{2}{*}{Mistral} 
-& EZStance Mixed & SS: 0.86\newline BTSD: 50.17 & SC: 48.72\% & Close but lower performance \\
-\cline{2-5}
-& EZStance NP & SS: 0.86\newline BTSD: 50.17 & SC: 48.72\% & Slightly better stance detection \\
+\multirow{2}{*}{Mistral~\cite{akash2024}} 
+& EZStance Mixed & 50.17 & 48.72 \\
+\cline{2-4}
+& EZStance NP & 50.17 & 48.72 \\
 \hline
 \end{tabular}
 \end{table*}
@@ -374,37 +388,61 @@ The comparison reveals several key insights:
 Several key observations emerge from these results:
 
 \begin{itemize}
-    \item \textbf{COVID-19 Dataset Performance}: The most substantial improvements were observed in the COVID-19 dataset, where the finetuned model achieved:
-    \begin{itemize}
-        \item An average stance accuracy increase of 21.02 percentage points (from 45.28\% to 66.30\%)
-        \item An average target accuracy increase of 27.08 percentage points (from 25.39\% to 52.47\%)
-    \end{itemize}
+    \item \textbf{COVID-19 Dataset Performance}: The most substantial improvements were observed in the COVID-19 dataset, where the finetuned model achieved: 
     
-    \item \textbf{EZStance Mixed Dataset}: Significant improvements were seen across all metrics:
-    \begin{itemize}
-        \item Average stance accuracy improved by 5.24 percentage points
-        \item Average target accuracy improved by 7.30 percentage points
-        \item BERTweet semantic similarity increased from 0.7392 to 0.7779
-        \item Macro F1 score improved from 0.3624 to 0.3964
-    \end{itemize}
+    An average stance accuracy increase of 21.02 percentage points (from 45.28\% to 66.30\%) was observed, along with an average target accuracy increase of 27.08 percentage points (from 25.39\% to 52.47\%).
     
-    \item \textbf{EZStance Noun Phrase Dataset}: Consistent improvements across all metrics:
-    \begin{itemize}
-        \item Average target accuracy increased by 8.28 percentage points
-        \item BERTweet semantic similarity improved from 0.7390 to 0.7871
-        \item Macro F1 score increased from 0.3533 to 0.3907
-    \end{itemize}
+    \item \textbf{EZStance Mixed Dataset}: Significant improvements were seen across all metrics: 
     
-    \item \textbf{Evaluator Consistency}: The averaged results from DeepSeek and Gemini demonstrate consistent trends, though with some variations:
-    \begin{itemize}
-        \item DeepSeek typically showed higher stance accuracy scores
-        \item Gemini often provided higher target accuracy scores
-        \item The variation may stem from differences in their training data or architectural biases, with DeepSeek potentially better tuned for stance classification and Gemini for semantic target matching
-        \item The averaged metrics provide a balanced view of model performance
-    \end{itemize}
+    Average stance accuracy improved by 5.24 percentage points, and average target accuracy improved by 7.30 percentage points. BERTweet semantic similarity increased from 0.7392 to 0.7779, and the Macro F1 score improved from 0.3624 to 0.3964.
+    
+    \item \textbf{EZStance Noun Phrase Dataset}: Consistent improvements across all metrics: 
+    
+    Average target accuracy increased by 8.28 percentage points. BERTweet semantic similarity improved from 0.7390 to 0.7871, and the Macro F1 score increased from 0.3533 to 0.3907.
+    
+    \item \textbf{Evaluator Consistency}: The averaged results from DeepSeek and Gemini demonstrate consistent trends, though with some variations: 
+    
+    DeepSeek typically showed higher stance accuracy scores, while Gemini often provided higher target accuracy scores. The variation may stem from differences in their training data or architectural biases, with DeepSeek potentially better tuned for stance classification and Gemini for semantic target matching. The averaged metrics provide a balanced view of model performance.
 \end{itemize}
 
 These results demonstrate that our finetuning approach is particularly effective for specialized domains like COVID-19, while still providing meaningful improvements across more general datasets. The consistent improvement in target identification across all datasets validates the effectiveness of our approach for the core challenge of target extraction in OTSD. The averaged metrics from both evaluators provide a robust measure of performance, helping to mitigate potential biases from any single evaluation model.
+
+\section{Error Analysis}
+
+To better understand the types of errors made by the finetuned model, we present the confusion matrix in Figure~\ref{fig:confusion_matrix}. This matrix summarizes the model's stance predictions (FAVOR, AGAINST, NONE) against the ground truth labels across the test set. The diagonal elements represent correct predictions, while off-diagonal elements indicate misclassifications. Notably, the model achieves high accuracy for the FAVOR and AGAINST classes, but some confusion remains, particularly between NONE and the other stances. This suggests that distinguishing neutral or ambiguous cases remains a challenge for the model, possibly due to the inherent subjectivity and context-dependence of stance in open-domain settings.
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.9\columnwidth]{figures/confusion_matrix.svg}
+    \caption{Confusion matrix for stance classification on the test set. Rows correspond to ground truth stances, columns to predicted stances.}
+    \label{fig:confusion_matrix}
+    \end{figure}
+To provide a more nuanced view, we qualitatively analyzed predictions from several evaluation datasets:
+
+\subsection*{Where the Model Performed Well}
+The model excelled when the stance was explicit and the target was clearly mentioned. For example:
+\begin{itemize}
+    \item \textbf{COVID-19 Dataset:} Tweets such as ``I absolutely support this'' (target: \textit{face masks}, stance: FAVOR) and ``Masks help to reduce viral load'' were correctly classified, with both target and stance matching the ground truth. The model also performed well on tweets with direct language supporting mask mandates or criticizing those against masks.
+    \item \textbf{Noun Phrase/Mixed Datasets:} When the target and stance were unambiguous, such as ``Cummings, AGAINST, Cummings, AGAINST'' or ``Central Bank of Kenya Pension Towers, FAVOR, Central Bank of Kenya Pension Towers, FAVOR,'' the model achieved perfect accuracy.
+\end{itemize}
+
+\subsection*{Where the Model Struggled}
+Errors were most common in cases involving:
+\begin{itemize}
+    \item \textbf{Ambiguous or Implicit Stance:} Tweets with sarcasm, negation, or indirect language (e.g., ``Thank goodness Trump wasn't there to greet the astronauts after splashdown. I'm sure he would have shown up with no mask!'') often led to incorrect stance predictions, especially when the stance was AGAINST but not directly stated.
+    \item \textbf{Complex or Mismatched Targets:} The model sometimes selected a related but not exact target, particularly with compound noun phrases (e.g., ``Fire Island movie, AGAINST, Asian people and gay people, FAVOR''). This reflects challenges in semantic target extraction when the reference is indirect or multi-faceted.
+    \item \textbf{Domain-Specific or Colloquial Language:} Tweets containing slang, abbreviations, or references specific to certain communities (e.g., ``Covidiots,'' ``childless crowd'') occasionally confused the model, resulting in incorrect stance or target predictions.
+\end{itemize}
+
+\subsection*{Analysis of Causes}
+These errors can be attributed to several factors:
+\begin{itemize}
+    \item \textbf{Subjectivity and Context:} Stance detection is inherently subjective, and even human annotators may disagree on ambiguous cases. The model's errors often mirror these ambiguities.
+    \item \textbf{Training Data Limitations:} The model may not have seen enough examples of certain linguistic phenomena (e.g., sarcasm, indirect references) during finetuning, limiting its ability to generalize.
+    \item \textbf{Semantic Overlap:} In some cases, the predicted target is semantically related but not identical to the ground truth, highlighting the challenge of open-target stance detection.
+\end{itemize}
+
+Overall, while the model demonstrates strong performance on explicit and direct examples, it remains challenged by nuanced, ambiguous, or context-dependent cases. These findings suggest that further improvements could be achieved by augmenting the training data with more diverse examples and incorporating techniques for better handling of implicit language and complex target structures.
 
 \section{Conclusion}
 \label{sec:conclusion}

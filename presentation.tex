@@ -1,0 +1,285 @@
+\documentclass{beamer}
+
+\usepackage{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{newtxtext,newtxmath} % Or use default Beamer fonts
+\usepackage{microtype}
+
+% Theme (optional, choose one you like)
+\usetheme{Madrid} % Example theme
+
+% --- Title Information ---
+\title[OTSD with Finetuned Llama]{Target and Stance Generation using Finetuned Llama for Open-Target Stance Detection}
+\author{RGUKT Nuzvid} % Updated Author/Institution
+\date{May 2, 2024} % Updated Date
+
+% --- Hyperref Setup (optional, Beamer handles some of this) ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,
+    urlcolor=cyan,
+    citecolor=green,
+    pdftitle={Target and Stance Generation using Finetuned Llama},
+    pdfsubject={Open-Target Stance Detection},
+    pdfkeywords={Open-Target Stance Detection, Llama, Finetuning, LoRA, Stance Detection, Target Generation, PEFT, Semantic Evaluation},
+}
+
+\begin{document}
+
+% --- Title Slide ---
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% --- Abstract Slide ---
+\begin{frame}{Abstract}
+  \tiny % Use smaller font for abstract
+  Open-Target Stance Detection (OTSD) requires identifying a target within a text and determining the expressed stance without prior knowledge of potential targets during inference, unlike traditional stance detection where targets are predefined. This study explores finetuning the Llama 3.1 8B model for OTSD using Parameter-Efficient Finetuning (PEFT) with Low-Rank Adaptation (LoRA) on a combined dataset from TSE and VAST resources. We evaluated the finetuned model against its base counterpart on three datasets: COVID-19 (specialized domain), EZStance Mixed (general-domain), and EZStance Noun Phrase (noun phrase targets). Semantic assessment by Gemini and DeepSeek-671B, averaged for robustness, and BERTweet-based similarity confirmed the finetuned model\'s superior performance, particularly on COVID-19, achieving 66.30\% stance accuracy and 52.47\% target accuracy (vs. 45.28\% and 25.39\% for the base model). EZStance Mixed showed moderate gains, while EZStance Noun Phrase exhibited significant target accuracy improvement but a slight stance accuracy decline, underscoring domain-specific challenges. These results highlight the efficacy of finetuning for OTSD.
+\end{frame}
+
+% --- Motivation Slide ---
+\begin{frame}{Motivation: The Challenge of Open-Target Stance Detection}
+  \begin{itemize}
+    \item Traditional Stance Detection (SD) requires the target to be predefined.
+    \item This is impractical in many real-world scenarios (social media, opinion mining) where the target is unknown beforehand.
+    \item Open-Target Stance Detection (OTSD) addresses this:
+          \begin{itemize}
+            \item Identify the target(s) within the text.
+            \item Determine the stance towards the identified target.
+          \end{itemize}
+    \item Existing Zero-Shot SD (ZSSD) and Target-Stance Extraction (TSE) methods often still rely on predefined targets at inference or map to known lists.
+    \item Large Language Models (LLMs) show promise, but their zero-shot OTSD capabilities have limitations, especially with implicit targets.
+    \item \textbf{Goal:} Investigate if \textit{finetuning} an LLM (Llama 3.1 8B) specifically for OTSD using efficient methods (LoRA) improves performance.
+  \end{itemize}
+\end{frame}
+
+% --- Real-World Applications Slide ---
+\begin{frame}{Real-World Applications}
+  Accurate Open-Target Stance Detection enables:
+  \begin{itemize}
+    \item \textbf{Social Media Analysis:} Understand public opinion on emerging topics, brands, or figures without predefined lists.
+    \item \textbf{Opinion Polling:} Gauge viewpoints from open-ended survey responses or online discussions.
+    \item \textbf{Argument Mining:} Identify stances towards specific claims or entities within complex arguments.
+    \item \textbf{Market Research:} Analyze customer feedback (reviews, comments) to find targets of praise or criticism.
+    \item \textbf{Policy Making:} Monitor public discourse surrounding policies and identify key concerns or points of support/opposition.
+  \end{itemize}
+  Essentially, any scenario where understanding spontaneous opinions towards potentially unknown subjects is valuable.
+\end{frame}
+
+% --- Related Works & Limitations Slide ---
+\begin{frame}{Related Work \& Limitations}
+  \textbf{Evolution of Stance Detection:}
+  \begin{itemize}
+    \item \textbf{Traditional Supervised SD:} \textit{Limitation:} Requires predefined target \& labeled data.
+    \item \textbf{Zero-Shot SD (ZSSD):} Handles unseen targets during training. \textit{Limitation:} Still often needs target provided at inference.
+    \item \textbf{Target-Stance Extraction (TSE):} Generates targets but maps to known lists. \textit{Limitation:} Not truly "open-target".
+    \item \textbf{LLM Zero-Shot OTSD (Akash et al. 2024):} Benchmarked GPT, Mistral. Showed potential. \textit{Limitation:} Struggles with implicit targets, zero-shot performance gaps remain.
+  \end{itemize}
+  \vfill
+  \textbf{Our Approach:}
+  \begin{itemize}
+    \item Builds on OTSD definition (Akash et al.).
+    \item Addresses limitations by \textbf{finetuning} Llama 3.1 8B specifically for the joint target/stance generation task.
+    \item Uses \textbf{PEFT (LoRA)} to make finetuning computationally feasible.
+  \end{itemize}
+\end{frame}
+
+% --- Algorithm/Methodology Slide ---
+\begin{frame}{Methodology: Finetuning Llama 3.1 8B with LoRA}
+  \textbf{Goal:} Train a model $M$ to take text $x'$ and output $O = M(x')$ containing predicted target $\hat{t'}$ and stance $\hat{y'}$.
+
+  \medskip % Add some vertical space
+
+  \textbf{Approach:}
+  \begin{itemize}
+    \item Base Model: Llama 3.1 8B (Decoder-only Transformer)
+    \item Finetuning Technique: Parameter-Efficient Finetuning (PEFT) using Low-Rank Adaptation (LoRA)
+          \begin{itemize}
+            \item Adapts model by training small 'adapter' matrices ($A, B$) instead of all weights.
+            \item Original weights ($W$) frozen; effective weights become $W + BA$.
+            \item Dramatically reduces trainable parameters ($\sim$0.52\% in our case).
+          \end{itemize}
+    \item Training: Supervised finetuning on combined dataset using instruction template.
+    \item Optimization: 4-bit quantization + Gradient Checkpointing via Unsloth for memory efficiency.
+  \end{itemize}
+\end{frame}
+
+% --- Technologies & Libraries Used Slide ---
+\begin{frame}{Key Technologies & Libraries}
+  \begin{columns}[T] % Align columns at the top
+    \begin{column}{0.5\textwidth}
+      \textbf{Core Model:}
+      \begin{itemize}
+        \item Llama 3.1 8B (Meta AI)
+              \begin{itemize}
+                \item \texttt{unsloth/Meta-Llama-3.1-8B}
+              \end{itemize}
+      \end{itemize}
+
+      \bigskip % Add space
+
+      \textbf{Finetuning:}
+      \begin{itemize}
+        \item PEFT (Parameter-Efficient Finetuning)
+        \item LoRA (Low-Rank Adaptation)
+        \item 4-bit Quantization (bitsandbytes)
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \textbf{Libraries:}
+      \begin{itemize}
+        \item Unsloth (Optimization)
+        \item Hugging Face Transformers
+        \item Hugging Face TRL (SFTTrainer)
+        \item PyTorch
+        \item bitsandbytes
+      \end{itemize}
+
+      \bigskip % Add space
+
+      \textbf{Evaluation:}
+      \begin{itemize}
+        \item Gemini \& DeepSeek-671B (Semantic Eval)
+        \item BERTweet (Target Similarity)
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% --- Datasets Used Slide ---
+\begin{frame}{Datasets}
+  \textbf{Finetuning Dataset (Combined):} (6,480 examples)
+  \begin{itemize}
+    \item \textbf{TSE Dataset:} Focus on explicit targets/stances (social media).
+    \item \textbf{VAST Dataset:} Diverse topics and stances for generalization.
+    \item \textit{Format:} Instruction template (`Input: [Text] -> Response: Target: [T], Stance: [S]`)
+  \end{itemize}
+
+  \medskip % Add some vertical space
+
+  \textbf{Evaluation Datasets (Held-out):}
+  \begin{itemize}
+    \item \textbf{COVID-19:} Specialized domain (pandemic-related).
+    \item \textbf{EZStance Mixed:} General domain, diverse topics.
+    \item \textbf{EZStance Noun Phrase:} Targets are noun phrases (linguistic challenge).
+  \end{itemize}
+  \\\\textit{Note: No overlap between finetuning and evaluation sets.}
+\end{frame}
+
+% --- Results Slide (Semantic Evaluation) ---
+\begin{frame}{Results: Finetuned vs. Base Model (Semantic Eval)}
+  \footnotesize % Use smaller font for table-like data
+  Compared base Llama 3.1 8B ($M_{\text{base}}$) vs. Finetuned ($M_{\text{finetuned}}$) using avg. DeepSeek/Gemini semantic accuracy:
+
+  \medskip
+  \begin{itemize}
+    \item \textbf{COVID-19 (Specialized Domain):}
+          \begin{itemize}
+            \item Stance Acc: \textbf{66.30\%} ($M_{\text{finetuned}}$) vs. 45.28\% ($M_{\text{base}}$) \quad (+21.02 pts)
+            \item Target Acc: \textbf{52.47\%} ($M_{\text{finetuned}}$) vs. 25.39\% ($M_{\text{base}}$) \quad (+27.08 pts)
+            \item \textit{Observation:} Substantial improvement in specialized domain.
+          \end{itemize}
+    \medskip
+    \item \textbf{EZStance Mixed (General Domain):}
+          \begin{itemize}
+            \item Stance Acc: \textbf{49.24\%} ($M_{\text{finetuned}}$) vs. 44.00\% ($M_{\text{base}}$) \quad (+5.24 pts)
+            \item Target Acc: \textbf{33.79\%} ($M_{\text{finetuned}}$) vs. 26.49\% ($M_{\text{base}}$) \quad (+7.30 pts)
+            \item \textit{Observation:} Moderate gains in general domain.
+          \end{itemize}
+    \medskip
+    \item \textbf{EZStance Noun Phrase:}
+          \begin{itemize}
+            \item Stance Acc: 47.12\% ($M_{\text{finetuned}}$) vs. \textbf{47.83\%} ($M_{\text{base}}$) \quad (-0.71 pts)
+            \item Target Acc: \textbf{34.68\%} ($M_{\text{finetuned}}$) vs. 26.40\% ($M_{\text{base}}$) \quad (+8.28 pts)
+            \item \textit{Observation:} Significant target improvement, slight stance decline (domain challenge).
+          \end{itemize}
+  \end{itemize}
+\end{frame}
+
+% --- Conclusion Slide ---
+\begin{frame}{Conclusion}
+  \begin{itemize}
+    \item Finetuning Llama 3.1 8B with \textbf{LoRA} significantly improves Open-Target Stance Detection (OTSD) performance compared to the zero-shot base model.
+    \medskip
+    \item Demonstrated effectiveness in \textbf{joint target identification and stance classification}.
+    \medskip
+    \item Greatest gains observed in \textbf{specialized domains} (e.g., COVID-19), with moderate improvements in general domains.
+    \medskip
+    \item \textbf{Noun phrase targets} remain challenging for stance classification, although target identification improved.
+    \medskip
+    \item \textbf{Parameter-Efficient Finetuning (PEFT)} is a viable and effective strategy for adapting LLMs to complex generative tasks like OTSD on resource-constrained hardware.
+    \medskip
+    \item Semantic evaluation using multiple LLMs provides a robust assessment.
+    \medskip
+    \item Future work could explore longer training, other PEFT methods, or domain-specific adaptation for noun phrases.
+  \end{itemize}
+\end{frame}
+
+% --- Future Scope Slide ---
+\begin{frame}{Future Scope}
+  Potential areas for future investigation include:
+  \begin{itemize}
+    \item \textbf{Extended Finetuning:} Exploring the impact of longer training durations (more steps) on performance.
+    \medskip
+    \item \textbf{Alternative PEFT Methods:} Evaluating other parameter-efficient techniques (e.g., Adapters, Prefix Tuning) beyond LoRA.
+    \medskip
+    \item \textbf{large finetuning datasets} use large and variety datasets
+    \medskip
+    \item \textbf{Larger/Different Base Models:} Experimenting with larger Llama variants or different LLM architectures.
+    \medskip
+    \item \textbf{Advanced Evaluation:} Incorporating more sophisticated evaluation metrics or human evaluation for finer-grained analysis.
+    \medskip
+    
+  \end{itemize}
+\end{frame}
+
+% --- References & Resources Slide ---
+\begin{frame}{References & Resources}
+  
+    \textbf{Datasets:}
+  \begin{itemize}
+    \item website:
+          \begin{itemize}
+            \item \url{https://anonymous.4open.science/r/opentarget-5521/README.md}
+          \end{itemize}
+  \end{itemize}
+  \medskip
+
+  \textbf{Project Code & Finetuning Details:}
+  \begin{itemize}
+    \item GitHub Repository:
+          \begin{itemize}
+            \item \url{https://github.com/PavanKalisetti/stance-detection-miniproject}
+          \end{itemize}
+  \end{itemize}
+
+  \medskip
+
+  \textbf{Primary Reference Paper: }
+  \begin{itemize}
+    \item Website:
+          \begin{itemize}
+            \item \url{https://arxiv.org/abs/2409.00222}
+          \end{itemize}
+  \end{itemize}
+\end{frame}
+
+% --- Thank You Slide ---
+\begin{frame}{Thank You}
+  \centering % Center the content
+  \Huge % Make text large
+  Thank You!
+  
+  \bigskip % Add some space
+  \large
+  Questions?
+\end{frame}
+
+\end{document} 
